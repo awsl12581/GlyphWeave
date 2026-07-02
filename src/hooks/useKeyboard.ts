@@ -1,0 +1,51 @@
+import { useEffect } from 'react'
+import { useMapStore } from '@/stores/map-store'
+import { useUiStore } from '@/stores/ui-store'
+import type { ToolType } from '@/types'
+
+export function useKeyboard() {
+  const undo = useMapStore((s) => s.undo)
+  const redo = useMapStore((s) => s.redo)
+  const setCurrentTool = useMapStore((s) => s.setCurrentTool)
+  const setShowGrid = useUiStore((s) => s.setShowGrid)
+  const showGrid = useUiStore((s) => s.showGrid)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+
+      if (e.ctrlKey && e.shiftKey && e.key === 'Z') {
+        e.preventDefault()
+        redo()
+        return
+      }
+      if (e.ctrlKey && e.key === 'z') {
+        e.preventDefault()
+        undo()
+        return
+      }
+
+      const toolMap: Record<string, ToolType> = {
+        'b': 'brush', 'B': 'brush',
+        'e': 'erase', 'E': 'erase',
+        'p': 'pan', 'P': 'pan',
+        'f': 'fill', 'F': 'fill',
+        's': 'select', 'S': 'select',
+      }
+      if (toolMap[e.key]) {
+        e.preventDefault()
+        setCurrentTool(toolMap[e.key])
+        return
+      }
+
+      if (e.key === 'g' || e.key === 'G') {
+        e.preventDefault()
+        setShowGrid(!showGrid)
+        return
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [undo, redo, setCurrentTool, setShowGrid, showGrid])
+}
