@@ -1,0 +1,231 @@
+/**
+ * Core map renderer for GlyphWeave.
+ * Renders a tilemap to PNG buffer using @napi-rs/canvas.
+ */
+
+import { createCanvas } from '@napi-rs/canvas'
+
+// ── Tile type definitions (copied from src/constants/tiles.ts) ──
+const TILE_TYPES = {
+  void:       { id: 'void',       char: ' ',  category: 'terrain' },
+  wall:       { id: 'wall',       char: '#',  category: 'wall' },
+  floor:      { id: 'floor',      char: '.',  category: 'floor' },
+  floorAlt:   { id: 'floorAlt',   char: ',',  category: 'floor' },
+  door:       { id: 'door',       char: '+',  category: 'wall' },
+  doorOpen:   { id: 'doorOpen',   char: "'",  category: 'wall' },
+  water:      { id: 'water',      char: '~',  category: 'water' },
+  deepWater:  { id: 'deepWater',  char: '≈',  category: 'water' },
+  lava:       { id: 'lava',       char: '~',  category: 'terrain' },
+  tree:       { id: 'tree',       char: '♣',  category: 'vegetation' },
+  grass:      { id: 'grass',      char: '"',  category: 'vegetation' },
+  bridge:     { id: 'bridge',     char: '═',  category: 'floor' },
+  stairsDown: { id: 'stairsDown', char: '>',  category: 'special' },
+  stairsUp:   { id: 'stairsUp',   char: '<',  category: 'special' },
+  altar:      { id: 'altar',      char: '≡',  category: 'furniture' },
+  fountain:   { id: 'fountain',   char: '♦',  category: 'furniture' },
+  grave:      { id: 'grave',      char: '☠',  category: 'decoration' },
+  trap:       { id: 'trap',       char: '^',  category: 'decoration' },
+  pillar:     { id: 'pillar',     char: '0',  category: 'wall' },
+  treasure:   { id: 'treasure',   char: '$',  category: 'item' },
+  shop:       { id: 'shop',       char: 'Σ',  category: 'furniture' },
+  table:      { id: 'table',      char: '▤',  category: 'furniture' },
+  throne:     { id: 'throne',     char: 'Ψ',  category: 'furniture' },
+  cage:       { id: 'cage',       char: '█',  category: 'furniture' },
+  blood:      { id: 'blood',      char: ';',  category: 'decoration' },
+  bar:        { id: 'bar',        char: '│',  category: 'wall' },
+}
+
+// ── Theme colors (abridged from src/constants/themes.ts) ──
+const THEMES = {
+  'ansi-16': {
+    name: 'ANSI 16',
+    colors: {
+      void:       { fgColor: '#000000', bgColor: '#000000' },
+      wall:       { fgColor: '#a0a0a0', bgColor: '#000000' },
+      floor:      { fgColor: '#808080', bgColor: '#1a1a1a' },
+      floorAlt:   { fgColor: '#666666', bgColor: '#141414' },
+      door:       { fgColor: '#ffff00', bgColor: '#1a1a00' },
+      doorOpen:   { fgColor: '#ffff88', bgColor: '#1a1a00' },
+      water:      { fgColor: '#0000ff', bgColor: '#00001a' },
+      deepWater:  { fgColor: '#000088', bgColor: '#000010' },
+      lava:       { fgColor: '#ff5500', bgColor: '#1a0500' },
+      tree:       { fgColor: '#00ff00', bgColor: '#001a00' },
+      grass:      { fgColor: '#44aa44', bgColor: '#001a00' },
+      bridge:     { fgColor: '#888866', bgColor: '#1a1a10' },
+      stairsDown: { fgColor: '#ffffff', bgColor: '#333333' },
+      stairsUp:   { fgColor: '#ffffff', bgColor: '#333333' },
+      altar:      { fgColor: '#ff00ff', bgColor: '#1a001a' },
+      fountain:   { fgColor: '#00ffff', bgColor: '#001a1a' },
+      grave:      { fgColor: '#888888', bgColor: '#0a0a0a' },
+      trap:       { fgColor: '#ff0000', bgColor: '#1a0000' },
+      pillar:     { fgColor: '#aaaaaa', bgColor: '#222222' },
+      treasure:   { fgColor: '#ffff00', bgColor: '#1a1a00' },
+      shop:       { fgColor: '#ffaa00', bgColor: '#1a1000' },
+      table:      { fgColor: '#8b6914', bgColor: '#1a1000' },
+      throne:     { fgColor: '#ffd700', bgColor: '#1a1400' },
+      cage:       { fgColor: '#888888', bgColor: '#111111' },
+      blood:      { fgColor: '#aa0000', bgColor: '#1a0000' },
+      bar:        { fgColor: '#8b4513', bgColor: '#1a0a00' },
+    },
+  },
+  'cogmind': {
+    name: 'Cogmind Dark',
+    colors: {
+      void:       { fgColor: '#000000', bgColor: '#000000' },
+      wall:       { fgColor: '#404060', bgColor: '#0a0a14' },
+      floor:      { fgColor: '#282840', bgColor: '#101020' },
+      floorAlt:   { fgColor: '#202038', bgColor: '#0c0c1c' },
+      door:       { fgColor: '#8080c0', bgColor: '#14142a' },
+      doorOpen:   { fgColor: '#a0a0d0', bgColor: '#14142a' },
+      water:      { fgColor: '#004080', bgColor: '#00081a' },
+      deepWater:  { fgColor: '#002060', bgColor: '#000410' },
+      lava:       { fgColor: '#ff4000', bgColor: '#1a0800' },
+      tree:       { fgColor: '#006000', bgColor: '#001000' },
+      grass:      { fgColor: '#204020', bgColor: '#001000' },
+      bridge:     { fgColor: '#505068', bgColor: '#181828' },
+      stairsDown: { fgColor: '#a0a0c0', bgColor: '#2a2a40' },
+      stairsUp:   { fgColor: '#a0a0c0', bgColor: '#2a2a40' },
+      altar:      { fgColor: '#800080', bgColor: '#100010' },
+      fountain:   { fgColor: '#008080', bgColor: '#001010' },
+      grave:      { fgColor: '#505050', bgColor: '#080808' },
+      trap:       { fgColor: '#800000', bgColor: '#100000' },
+      pillar:     { fgColor: '#585878', bgColor: '#18182a' },
+      treasure:   { fgColor: '#c0c000', bgColor: '#141400' },
+      shop:       { fgColor: '#c08000', bgColor: '#141000' },
+      table:      { fgColor: '#605020', bgColor: '#100800' },
+      throne:     { fgColor: '#b09800', bgColor: '#141000' },
+      cage:       { fgColor: '#505060', bgColor: '#0c0c18' },
+      blood:      { fgColor: '#600000', bgColor: '#0a0000' },
+      bar:        { fgColor: '#604020', bgColor: '#0a0400' },
+    },
+  },
+}
+
+const MAX_OUTPUT_SIZE = 4096
+const TILE_SIZE = 24  // render tile size in px (before scale)
+
+/**
+ * Parse map data from either flat or layered format.
+ * Returns a flat record of "x,y" → tileTypeId.
+ */
+function flattenTiles(data) {
+  if (data.layerTiles && data.layers) {
+    const result = {}
+    for (const layer of data.layers) {
+      const lt = data.layerTiles[layer.id]
+      if (lt && layer.visible !== false) {
+        for (const [key, id] of Object.entries(lt)) {
+          if (id) result[key] = id
+        }
+      }
+    }
+    return result
+  }
+  if (data.tiles) return { ...data.tiles }
+  return data  // assume already flat
+}
+
+/**
+ * Compute bounds from a flat tiles record.
+ */
+function computeBounds(tiles) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const key of Object.keys(tiles)) {
+    const [sx, sy] = key.split(',')
+    const x = parseInt(sx, 10)
+    const y = parseInt(sy, 10)
+    if (x < minX) minX = x
+    if (y < minY) minY = y
+    if (x > maxX) maxX = x
+    if (y > maxY) maxY = y
+  }
+  if (!isFinite(minX)) return { minX: 0, minY: 0, maxX: 0, maxY: 0, w: 1, h: 1 }
+  return { minX, minY, maxX, maxY, w: maxX - minX + 1, h: maxY - minY + 1 }
+}
+
+/**
+ * Render a tilemap to a PNG buffer.
+ *
+ * @param {object} data       - Map data: { tiles?, layerTiles?, layers?, ... }
+ * @param {object} options
+ * @param {string} options.themeId  - Theme ID ('ansi-16' or 'cogmind')
+ * @param {number} options.padding  - Extra tiles around bounds (default 1)
+ * @param {number} options.scale    - Pixels per tile (default: auto-fit)
+ * @returns {Buffer} PNG image buffer
+ */
+export function renderMap(data, options = {}) {
+  const themeId = options.themeId || 'ansi-16'
+  const padding = options.padding ?? 1
+  const explicitScale = options.scale
+
+  const theme = THEMES[themeId]
+  if (!theme) throw new Error(`Unknown theme: ${themeId}`)
+
+  const tiles = flattenTiles(data)
+  const bounds = computeBounds(tiles)
+
+  const tileW = bounds.w
+  const tileH = bounds.h
+  const contentW = tileW * TILE_SIZE
+  const contentH = tileH * TILE_SIZE
+  const padPx = padding * TILE_SIZE
+
+  // Determine scale
+  let scale
+  if (explicitScale) {
+    scale = explicitScale / TILE_SIZE
+  } else {
+    const maxDim = MAX_OUTPUT_SIZE - padPx * 2
+    const sx = maxDim / contentW
+    const sy = maxDim / contentH
+    scale = Math.min(1, sx, sy)
+  }
+
+  const canvasW = Math.ceil(contentW * scale + padPx * 2)
+  const canvasH = Math.ceil(contentH * scale + padPx * 2)
+
+  const canvas = createCanvas(canvasW, canvasH)
+  const ctx = canvas.getContext('2d')
+
+  // Fill background
+  ctx.fillStyle = '#000'
+  ctx.fillRect(0, 0, canvasW, canvasH)
+
+  const ox = (canvasW - contentW * scale) / 2
+  const oy = (canvasH - contentH * scale) / 2
+
+  // Draw tiles
+  for (const [key, tileTypeId] of Object.entries(tiles)) {
+    if (!tileTypeId || tileTypeId === 'void') continue
+    const [sx, sy] = key.split(',')
+    const x = parseInt(sx, 10) - bounds.minX
+    const y = parseInt(sy, 10) - bounds.minY
+
+    const colors = theme.colors[tileTypeId]
+    if (!colors) continue
+
+    const px = ox + x * TILE_SIZE * scale
+    const py = oy + y * TILE_SIZE * scale
+    const ts = Math.ceil(TILE_SIZE * scale) + 0.5
+
+    // Background
+    ctx.fillStyle = colors.bgColor
+    ctx.fillRect(px, py, ts, ts)
+
+    // Character
+    const def = TILE_TYPES[tileTypeId]
+    if (def && def.char && def.char !== ' ') {
+      ctx.fillStyle = colors.fgColor
+      const fontSize = Math.round(TILE_SIZE * scale * 0.75)
+      if (fontSize >= 4) {
+        // Use a simple approach: draw centered text
+        ctx.font = `${fontSize}px monospace`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(def.char, px + ts / 2, py + ts / 2)
+      }
+    }
+  }
+
+  return canvas.toBuffer('image/png')
+}
