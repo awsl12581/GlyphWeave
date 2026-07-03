@@ -1,86 +1,183 @@
-# GlyphWeave
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/map-cogmind-small.png">
+    <img src="media/map-ansi16-small.png" alt="GlyphWeave — Grand Realm of Aethra" width="700">
+  </picture>
+</p>
 
-An infinite-canvas ASCII roguelike tilemap editor. Paint dungeons, weave glyphs.
+<h1 align="center">GlyphWeave</h1>
 
-Built with **React + Konva + Tailwind CSS + shadcn/ui**.
+<p align="center">
+  <em>An infinite-canvas ASCII roguelike tilemap editor. Paint dungeons, weave glyphs.</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/HsiangNianian/GlyphWeave"><img src="https://img.shields.io/github/stars/HsiangNianian/GlyphWeave?logo=github" alt="GitHub stars"></a>
+  <a href="https://github.com/HsiangNianian/GlyphWeave/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-65a30d?style=flat" alt="MIT license"></a>
+  <br>
+  <img src="https://img.shields.io/badge/React_19-000?style=flat&logo=react" alt="React 19">
+  <img src="https://img.shields.io/badge/Konva-000?style=flat&logo=canvas" alt="Konva">
+  <img src="https://img.shields.io/badge/Tailwind_CSS_v4-000?style=flat&logo=tailwindcss" alt="Tailwind CSS v4">
+  <img src="https://img.shields.io/badge/Zustand-000?style=flat&logo=react" alt="Zustand">
+  <img src="https://img.shields.io/badge/TypeScript-000?style=flat&logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Vite-000?style=flat&logo=vite" alt="Vite">
+  <img src="https://img.shields.io/badge/pnpm-000?style=flat&logo=pnpm" alt="pnpm">
+</p>
+
+<p align="center">
+  <b>English</b> · <a href="README.zh.md">中文</a> · <a href="README.ja.md">日本語</a>
+</p>
+
+---
+
+## What Is This
+
+**GlyphWeave** is an open-source, infinite-canvas tilemap editor designed for roguelike ASCII art. Paint dungeons tile by tile, place preset rooms, switch between retro terminal themes, and export your worlds as portable `.gemap` files — all in the browser.
+
+Each tile is an ASCII glyph (`#`, `.`, `~`, `♣`, …). **Weave** them into a coherent map, strand by strand.
+
+---
 
 ## Features
 
-- **Infinite canvas** — pan (middle-click / tool) and zoom (scroll wheel) with Konva
-- **25 tile types** — walls, floors, water, lava, trees, furniture, decorations, and more
-- **25 preset rooms** — rooms, corridors, dungeon features, traps, ready to place
-- **Dual themes** — ANSI 16 (classic terminal) and Cogmind Dark (cyberpunk low-light)
-- **Theme as batch-replace** — switching theme instantly recolors every tile
-- **Brush / Eraser / Flood Fill / Pan / Select** tools
-- **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z)
-- **Export / Import** as `.gemap` JSON
-- **Demo map** — "The Forgotten Catacombs", a hand-curated 80×48 dungeon
-- **Keyboard shortcuts** — B/E/F/P/S for tools, G for grid toggle
+- **Infinite canvas** — pan and zoom with Konva. Middle-click or Pan tool to navigate.
+- **25 tile types** — walls, floors, water, lava, trees, furniture, decorations, and more.
+- **25 preset rooms** — rooms, corridors, dungeon features, traps, ready to place.
+- **Dual themes** — ANSI 16 (classic terminal) and Cogmind Dark (cyberpunk low-light). Switching theme instantly recolors every tile.
+- **Multi-layer editing** — separate Terrain, Structures, and Details onto different layers. Hide, lock, add, or delete layers freely.
+- **Brush / Eraser / Flood Fill / Pan / Select** tools.
+- **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z) — step back through your last 50 edits.
+- **Export / Import** as `.gemap` JSON — preserves layers, theme, and world name.
+- **Minimap** — real-time overview with viewport rectangle. Click to jump.
+- **View Distance** — configurable render padding for smooth panning.
+- **Render API** — generate PNG images from any map via `GET /render` or `POST /render`.
+- **Keyboard shortcuts** — `B` brush, `E` eraser, `F` flood fill, `P` pan, `S` select, `G` grid toggle.
+- **Demo maps** — load "The Forgotten Catacombs" or "Grand Realm of Aethra" to explore.
 
-## Tech Stack
+---
 
-| Layer | Package |
-|---|---|
-| Build | Vite |
-| UI | React 19 + TypeScript |
-| Canvas | Konva + react-konva |
-| State | Zustand + immer |
-| Styling | Tailwind CSS v4 |
-| Components | shadcn/ui (Radix) |
-| Icons | Lucide |
-
-## Getting Started
+## Quick Start
 
 ```bash
+# Install dependencies
 pnpm install
+
+# Start development server
 pnpm dev
 ```
 
 Open `http://localhost:5173` — choose a world name, tile size, and theme, then start painting. Or click **Load Demo Map** to explore a pre-built dungeon.
 
+> The **Render API** is automatically available on the same port — `GET /render?data=<base64>` or `POST /render` with a JSON body. See the [render server docs](server/index.mjs) for details.
+
+---
+
+## Tech Stack
+
+| Layer       | Package                |
+| ----------- | ---------------------- |
+| Build       | Vite                   |
+| UI          | React 19 + TypeScript  |
+| Canvas      | Konva + react-konva    |
+| State       | Zustand + immer        |
+| Styling     | Tailwind CSS v4        |
+| Components  | shadcn/ui (Radix)      |
+| Icons       | Lucide                 |
+| Render API  | @napi-rs/canvas        |
+
+---
+
 ## Project Structure
 
 ```
 src/
-├── types/index.ts          # Core type definitions
+├── types/index.ts           # Core type definitions
 ├── constants/
-│   ├── tiles.ts            # 25 tile type definitions (char, category)
-│   ├── presets.ts          # 25 room/shape presets
-│   ├── themes.ts           # ANSI 16 & Cogmind color themes
-│   └── demo-map.ts         # Procedural demo map generator
+│   ├── tiles.ts             # 25 tile type definitions
+│   ├── presets.ts           # 25 room/shape presets
+│   ├── themes.ts            # ANSI 16 & Cogmind color themes
+│   └── demo-map.ts          # Procedural demo map generator
 ├── stores/
-│   ├── map-store.ts        # Zustand store: tiles, history, tools
-│   └── ui-store.ts         # Zustand store: panels, grid toggle
+│   ├── map-store.ts         # Zustand: tiles, layers, history, tools
+│   └── ui-store.ts          # Zustand: panels, grid, minimap, view distance
 ├── hooks/
-│   ├── useCanvas.ts        # Konva mouse/touch interaction logic
-│   └── useKeyboard.ts      # Keyboard shortcut bindings
+│   ├── useCanvas.ts         # Konva mouse/touch interaction
+│   └── useKeyboard.ts       # Global keyboard shortcuts
 └── components/
-    ├── canvas/MapCanvas.tsx # Konva Stage + viewport culling + tile rendering
-    ├── canvas/TileCell.tsx  # Memoized single-tile renderer
-    ├── toolbar/Toolbar.tsx  # Tool buttons + undo/redo
-    ├── panels/
-    │   ├── TilePalette.tsx  # Tile type grid selector
-    │   ├── PresetsPanel.tsx # Preset browser with mini-previews
-    │   ├── LayersPanel.tsx  # Layer list (skeleton)
-    │   └── ExportPanel.tsx  # JSON export/import
-    └── pages/
-        ├── HomePage.tsx     # World creation form
-        └── EditorPage.tsx   # Three-panel editor layout
+    ├── canvas/              # MapCanvas, TileCell, Minimap
+    ├── toolbar/             # Tool buttons + undo/redo
+    ├── panels/              # TilePalette, PresetsPanel, LayersPanel,
+    │                        # SettingsPanel, ExportPanel
+    ├── pages/               # HomePage, EditorPage
+    └── ui/                  # shadcn/ui primitives
 ```
+
+---
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|---|---|
-| `B` | Brush tool |
-| `E` | Eraser tool |
-| `F` | Flood fill |
-| `P` | Pan tool |
-| `S` | Select tool |
-| `Ctrl+Z` | Undo |
-| `Ctrl+Shift+Z` | Redo |
-| `G` | Toggle grid |
+| Key               | Action          |
+| ----------------- | --------------- |
+| `B`               | Brush tool      |
+| `E`               | Eraser tool     |
+| `F`               | Flood fill      |
+| `P`               | Pan tool        |
+| `S`               | Select tool     |
+| `Ctrl+Z`          | Undo            |
+| `Ctrl+Shift+Z`    | Redo            |
+| `G`               | Toggle grid     |
+
+---
+
+## Render API
+
+GlyphWeave ships with a standalone render server that converts tilemaps to PNG images.
+
+```bash
+# Start the render server (optional, already available in dev mode)
+pnpm render-server
+```
+
+### POST (recommended for large maps)
+
+```bash
+curl -X POST http://localhost:3001/render \
+  -H "Content-Type: application/json" \
+  -d @my-map.gemap > map.png
+```
+
+### GET (small maps)
+
+```bash
+DATA=$(echo -n '{"tiles":{"0,0":"wall"}}' | base64)
+curl "http://localhost:3001/render?data=$DATA" > map.png
+```
+
+Parameters:
+- `theme` — `ansi-16` (default) or `cogmind`
+- `padding` — extra tiles around bounds (default: `1`)
+- `scale` — pixels per tile (default: auto-fit ≤ 4096px)
+
+---
+
+## Demo Maps
+
+| Map                    | Size    | Description                                    |
+| ---------------------- | ------- | ---------------------------------------------- |
+| The Forgotten Catacombs | 80×48  | Hand-curated dungeon with 25 preset rooms       |
+| Grand Realm of Aethra  | 120×80  | A sprawling 3-layer realm with mountains, lake, river, lava fissure, volcano, forest, village, walled city, park, and dungeon |
+
+---
 
 ## Why the Name?
 
-**Glyph** — each tile is an ASCII glyph (`#`, `.`, `~`, `♣`, …). **Weave** — you interlace these glyphs into a coherent map, strand by strand.
+**Glyph** — each tile is an ASCII glyph (`#`, `.`, `~`, `♣`, …).  
+**Weave** — you interlace these glyphs into a coherent map, strand by strand.
+
+---
+
+## License
+
+[![MIT](https://img.shields.io/badge/license-MIT-65a30d)](LICENSE)
+
+MIT © Hsiang Nianian

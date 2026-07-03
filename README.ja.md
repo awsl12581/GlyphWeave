@@ -1,0 +1,168 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/map-cogmind-small.png">
+    <img src="media/map-ansi16-small.png" alt="GlyphWeave — グランドレルム・オブ・エイスラ" width="700">
+  </picture>
+</p>
+
+<h1 align="center">GlyphWeave</h1>
+
+<p align="center">
+  <em>無限キャンバスのASCIIローグライクタイルマップエディタ。ダンジョンを描き、グリフを紡ぐ。</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/HsiangNianian/GlyphWeave"><img src="https://img.shields.io/github/stars/HsiangNianian/GlyphWeave?logo=github" alt="GitHub stars"></a>
+  <a href="https://github.com/HsiangNianian/GlyphWeave/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-65a30d?style=flat" alt="MIT license"></a>
+  <br>
+  <img src="https://img.shields.io/badge/React_19-000?style=flat&logo=react" alt="React 19">
+  <img src="https://img.shields.io/badge/Konva-000?style=flat&logo=canvas" alt="Konva">
+  <img src="https://img.shields.io/badge/Tailwind_CSS_v4-000?style=flat&logo=tailwindcss" alt="Tailwind CSS v4">
+  <img src="https://img.shields.io/badge/Zustand-000?style=flat&logo=react" alt="Zustand">
+  <img src="https://img.shields.io/badge/TypeScript-000?style=flat&logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Vite-000?style=flat&logo=vite" alt="Vite">
+  <img src="https://img.shields.io/badge/pnpm-000?style=flat&logo=pnpm" alt="pnpm">
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> · <a href="README.zh.md">中文</a> · <b>日本語</b>
+</p>
+
+---
+
+## これは何？
+
+**GlyphWeave** は、ローグライクASCIIアートのためのオープンソースの無限キャンバスタイルマップエディタです。タイルごとにダンジョンを描き、プリセットルームを配置し、レトロなターミナルテーマを切り替え、あなたの世界をポータブルな `.gemap` ファイルとしてエクスポートできます——すべてブラウザ上で。
+
+各タイルはASCIIグリフ（`#`、`.`、`~`、`♣`……）です。それらを**紡いで**、ひとつの地図に織り上げます。
+
+---
+
+## 機能
+
+- **無限キャンバス** — Konva によるパンとズーム。中クリックまたはパンツールで移動。
+- **25種類のタイル** — 壁、床、水、溶岩、木、家具、装飾など。
+- **25種類のプリセットルーム** — 部屋、廊下、ダンジョン設備、トラップをすぐに配置。
+- **2つのテーマ** — ANSI 16（クラシックターミナル）と Cogmind Dark（サイバーパンク低照度）。テーマ切り替えですべてのタイルが瞬時に色替え。
+- **マルチレイヤー編集** — 地形、建造物、詳細を別々のレイヤーに分割。非表示、ロック、追加、削除は自由自在。
+- **ブラシ / 消しゴム / 塗りつぶし / パン / 選択** ツール。
+- **元に戻す / やり直し**（Ctrl+Z / Ctrl+Shift+Z）— 過去50ステップまで。
+- **エクスポート / インポート** `.gemap` JSON 形式 — レイヤー、テーマ、ワールド名を保持。
+- **ミニマップ** — ビューポート矩形付きのリアルタイム概要。クリックでジャンプ。
+- **視距離** — スムーズなパンのための設定可能なレンダリング余白。
+- **レンダリングAPI** — `GET /render` または `POST /render` で地図をPNG画像に変換。
+- **キーボードショートカット** — `B` ブラシ、`E` 消しゴム、`F` 塗りつぶし、`P` パン、`S` 選択、`G` グリッド切替。
+- **デモマップ** — 「忘れられしカタコンベ」または「グランドレルム・オブ・エイスラ」を探索。
+
+---
+
+## クイックスタート
+
+```bash
+# 依存関係をインストール
+pnpm install
+
+# 開発サーバーを起動
+pnpm dev
+```
+
+`http://localhost:5173` を開き、ワールド名、タイルサイズ、テーマを選択して描き始めましょう。
+
+> **レンダリングAPI** は開発モードで自動的に同一ポートで利用可能です——`GET /render?data=<base64>` または `POST /render`（JSON body）。詳細は[サーバードキュメント](server/index.mjs)を参照。
+
+---
+
+## 技術スタック
+
+| レイヤー     | ツール                  |
+| ------------ | ----------------------- |
+| ビルド       | Vite                    |
+| UI           | React 19 + TypeScript   |
+| キャンバス   | Konva + react-konva     |
+| 状態管理     | Zustand + immer         |
+| スタイリング | Tailwind CSS v4         |
+| コンポーネント| shadcn/ui (Radix)       |
+| アイコン     | Lucide                  |
+| レンダーAPI  | @napi-rs/canvas         |
+
+---
+
+## プロジェクト構造
+
+```
+src/
+├── types/index.ts           # コア型定義
+├── constants/
+│   ├── tiles.ts             # 25種類のタイル定義
+│   ├── presets.ts           # 25種類のルームプリセット
+│   ├── themes.ts            # ANSI 16 & Cogmind カラーテーマ
+│   └── demo-map.ts          # プロシージャルデモマップ生成
+├── stores/
+│   ├── map-store.ts         # Zustand: タイル、レイヤー、履歴、ツール
+│   └── ui-store.ts          # Zustand: パネル、グリッド、ミニマップ、視距離
+├── hooks/
+│   ├── useCanvas.ts         # Konva マウス/タッチ操作
+│   └── useKeyboard.ts       # グローバルキーボードショートカット
+└── components/
+    ├── canvas/              # MapCanvas, TileCell, Minimap
+    ├── toolbar/             # ツールボタン + 元に戻す/やり直し
+    ├── panels/              # タイルパレット, プリセットパネル, レイヤーパネル,
+    │                        # 設定パネル, エクスポートパネル
+    ├── pages/               # HomePage, EditorPage
+    └── ui/                  # shadcn/ui プリミティブ
+```
+
+---
+
+## Render API
+
+GlyphWeave には、タイルマップを PNG 画像に変換するスタンドアロンのレンダリングサーバーが付属しています。
+
+```bash
+# レンダリングサーバーを起動（開発モードでは自動統合済み）
+pnpm render-server
+```
+
+### POST（大きなマップに推奨）
+
+```bash
+curl -X POST http://localhost:3001/render \
+  -H "Content-Type: application/json" \
+  -d @my-map.gemap > map.png
+```
+
+### GET（小さなマップ向け）
+
+```bash
+DATA=$(echo -n '{"tiles":{"0,0":"wall"}}' | base64)
+curl "http://localhost:3001/render?data=$DATA" > map.png
+```
+
+パラメータ：
+- `theme` — `ansi-16`（デフォルト）または `cogmind`
+- `padding` — 境界外の余分タイル数（デフォルト `1`）
+- `scale` — タイルあたりのピクセル数（デフォルトは自動フィット ≤ 4096px）
+
+---
+
+## デモマップ
+
+| マップ                   | サイズ   | 説明                                           |
+| ------------------------ | -------- | ---------------------------------------------- |
+| 忘れられしカタコンベ     | 80×48    | 25のプリセットルームで構成された厳選ダンジョン   |
+| グランドレルム・オブ・エイスラ | 120×80 | 山脈、湖、川、溶岩割れ目、火山、森、村、城塞都市、公園、ダンジョンに及ぶ3レイヤーの広大な世界 |
+
+---
+
+## 名前の由来
+
+**Glyph** — 各タイルはASCIIグリフ（`#`、`.`、`~`、`♣`……）です。  
+**Weave** — それらのグリフを織り交ぜて、ひとつの地図に紡ぎ上げます。
+
+---
+
+## ライセンス
+
+[![MIT](https://img.shields.io/badge/license-MIT-65a30d)](LICENSE)
+
+MIT © Hsiang Nianian
