@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="media/map-cogmind-small.png">
-    <img src="media/map-ansi16-small.png" alt="GlyphWeave — 艾瑟拉宏大王国" width="700">
-  </picture>
+  <img src="media/map-ansi16-small.png" alt="GlyphWeave — 艾瑟拉宏大王国" width="700">
 </p>
 
 <h1 align="center">GlyphWeave</h1>
