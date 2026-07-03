@@ -171,12 +171,26 @@ export const useMapStore = create<MapStore>()(
       draft.worldName = config.worldName
       draft.tileSize = config.tileSize
       draft.themeId = config.themeId
-      const layerId = 'layer-1'
-      draft.layers = [{ id: layerId, name: 'Ground', visible: true, locked: false }]
-      draft.activeLayer = 0
-      draft.tiles = config.initialTiles
-        ? { [layerId]: { ...config.initialTiles } }
-        : { [layerId]: {} }
+
+      if (config.initialLayerTiles && config.initialLayers && config.initialLayers.length > 0) {
+        draft.tiles = {}
+        for (const [id, lt] of Object.entries(config.initialLayerTiles)) {
+          draft.tiles[id] = { ...lt }
+        }
+        draft.layers = config.initialLayers.map((l) => ({ ...l }))
+        draft.activeLayer = 0
+      } else if (config.initialTiles) {
+        const layerId = 'layer-1'
+        draft.tiles = { [layerId]: { ...config.initialTiles } }
+        draft.layers = [{ id: layerId, name: 'Ground', visible: true, locked: false }]
+        draft.activeLayer = 0
+      } else {
+        const layerId = 'layer-1'
+        draft.tiles = { [layerId]: {} }
+        draft.layers = [{ id: layerId, name: 'Ground', visible: true, locked: false }]
+        draft.activeLayer = 0
+      }
+
       draft.history = []
       draft.historyIndex = -1
       draft.currentTool = 'brush'

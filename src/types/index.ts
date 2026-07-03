@@ -35,6 +35,8 @@ export interface WorldConfig {
   tileSize: number
   themeId: string
   initialTiles?: Record<string, string | null>
+  initialLayerTiles?: Record<string, Record<string, string | null>>
+  initialLayers?: Layer[]
 }
 
 export interface Layer {

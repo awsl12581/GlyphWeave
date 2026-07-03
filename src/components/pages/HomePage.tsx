@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import type { WorldConfig } from '@/types'
 import { THEME_LIST } from '@/constants/themes'
 import { TILE_TYPES } from '@/constants/tiles'
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 
-import { MapIcon } from 'lucide-react'
+import { MapIcon, Upload } from 'lucide-react'
 
 const TILE_SIZES = [16, 20, 24, 32]
 
@@ -21,11 +21,49 @@ export function HomePage({ onStart }: HomePageProps) {
   const [worldName, setWorldName] = useState('My Roguelike World')
   const [tileSize, setTileSize] = useState(24)
   const [themeId, setThemeId] = useState('ansi-16')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleCreate = () => {
     if (!worldName.trim()) return
     onStart({ worldName: worldName.trim(), tileSize, themeId })
   }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+
+      // Build world name from filename if not in data
+      const mapWorldName = data.worldName || file.name.replace(/\.(gemap|json)$/i, '')
+
+      // Detect format: v2 layered or v1 flat
+      if (data.layerTiles && data.layers && data.layers.length > 0) {
+        onStart({
+          worldName: mapWorldName,
+          tileSize: tileSize,
+          themeId: themeId,
+          initialLayerTiles: data.layerTiles,
+          initialLayers: data.layers,
+        })
+      } else if (data.tiles) {
+        onStart({
+          worldName: mapWorldName,
+          tileSize: tileSize,
+          themeId: themeId,
+          initialTiles: data.tiles,
+        })
+      }
+    } catch (err) {
+      console.error('Failed to import map:', err)
+    }
+    e.target.value = ''
+  }, [onStart, tileSize, themeId])
 
   const sampleColors = [
     TILE_TYPES.wall,
@@ -132,30 +170,40 @@ export function HomePage({ onStart }: HomePageProps) {
           Create World &amp; Enter Editor
         </Button>
 
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-zinc-800" />
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-zinc-950 px-2 text-zinc-600">or</span>
-          </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="flex-1 h-10 font-mono text-sm border-zinc-700 hover:bg-zinc-800 gap-2"
+            onClick={handleImportClick}
+          >
+            <Upload className="w-4 h-4" />
+            Import Map
+          </Button>
+
+          <Button
+            variant="outline"
+            className="flex-1 h-10 font-mono text-sm border-zinc-700 hover:bg-zinc-800 gap-2"
+            onClick={() =>
+              onStart({
+                worldName: 'The Forgotten Catacombs',
+                tileSize,
+                themeId,
+                initialTiles: generateDemoMap(),
+              })
+            }
+          >
+            <MapIcon className="w-4 h-4" />
+            Demo Map
+          </Button>
         </div>
 
-        <Button
-          variant="outline"
-          className="w-full h-10 font-mono text-sm border-zinc-700 hover:bg-zinc-800 gap-2"
-          onClick={() =>
-            onStart({
-              worldName: 'The Forgotten Catacombs',
-              tileSize: 24,
-              themeId: 'cogmind',
-              initialTiles: generateDemoMap(),
-            })
-          }
-        >
-          <MapIcon className="w-4 h-4" />
-          Load Demo Map — The Forgotten Catacombs
-        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".gemap,.json"
+          className="hidden"
+          onChange={handleFileChange}
+        />
       </Card>
     </div>
   )
