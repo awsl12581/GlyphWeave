@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+
 import { MapIcon } from 'lucide-react'
 
 const TILE_SIZES = [16, 20, 24, 32]
@@ -78,12 +78,17 @@ export function HomePage({ onStart }: HomePageProps) {
 
         <div className="space-y-2">
           <Label className="text-xs text-zinc-400">Color Theme</Label>
-          <RadioGroup value={themeId} onValueChange={setThemeId} className="gap-2">
+          <div className="grid grid-cols-1 gap-2">
             {THEME_LIST.map((theme) => {
               const colors = sampleColors.map((t) => theme.colors[t.id])
               return (
-                <label
+                <div
                   key={theme.id}
+                  role="radio"
+                  aria-checked={themeId === theme.id}
+                  tabIndex={0}
+                  onClick={() => setThemeId(theme.id)}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setThemeId(theme.id)}
                   className={`
                     flex items-center gap-3 rounded-md border p-3 cursor-pointer
                     transition-colors
@@ -93,7 +98,6 @@ export function HomePage({ onStart }: HomePageProps) {
                     }
                   `}
                 >
-                  <RadioGroupItem value={theme.id} id={theme.id} className="sr-only" />
                   <div className="flex gap-1">
                     {colors.map((c, i) => (
                       <div
@@ -112,10 +116,10 @@ export function HomePage({ onStart }: HomePageProps) {
                   {themeId === theme.id && (
                     <div className="w-2 h-2 rounded-full bg-zinc-100 shrink-0" />
                   )}
-                </label>
+                </div>
               )
             })}
-          </RadioGroup>
+          </div>
         </div>
 
         <Separator className="bg-zinc-800" />
