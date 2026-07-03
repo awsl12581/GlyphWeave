@@ -14,7 +14,7 @@ import { SettingsPanel } from '@/components/panels/SettingsPanel'
 import { ExportPanel } from '@/components/panels/ExportPanel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { PanelRightClose, PanelRightOpen, Settings } from 'lucide-react'
 
 interface EditorPageProps {
   worldConfig: WorldConfig
@@ -80,12 +80,14 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
       {sidePanelOpen && (
         <div className="w-56 bg-zinc-950 border-l border-zinc-800 flex flex-col overflow-hidden shrink-0">
           <Tabs value={sidePanelTab} onValueChange={setSidePanelTab} className="flex flex-col h-full">
-            <TabsList className="bg-zinc-900 border-b border-zinc-800 rounded-none px-1 h-9 justify-start gap-0">
-              <TabsTrigger value="tiles" className="text-xs h-8 px-2.5 data-[state=active]:bg-zinc-800 rounded-none">Tiles</TabsTrigger>
-              <TabsTrigger value="presets" className="text-xs h-8 px-2.5 data-[state=active]:bg-zinc-800 rounded-none">Presets</TabsTrigger>
-              <TabsTrigger value="layers" className="text-xs h-8 px-2.5 data-[state=active]:bg-zinc-800 rounded-none">Layers</TabsTrigger>
-              <TabsTrigger value="export" className="text-xs h-8 px-2.5 data-[state=active]:bg-zinc-800 rounded-none">📦</TabsTrigger>
-              <TabsTrigger value="settings" className="text-xs h-8 px-2.5 data-[state=active]:bg-zinc-800 rounded-none">⚙️</TabsTrigger>
+            <TabsList className="bg-zinc-900 border-b border-zinc-800 rounded-none px-1 h-9 justify-start gap-0 overflow-x-auto flex-nowrap">
+              <TabsTrigger value="tiles" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">Tiles</TabsTrigger>
+              <TabsTrigger value="presets" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">Presets</TabsTrigger>
+              <TabsTrigger value="layers" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">Layers</TabsTrigger>
+              <TabsTrigger value="export" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">📦</TabsTrigger>
+              <TabsTrigger value="settings" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0 flex items-center gap-1">
+                <Settings className="w-3.5 h-3.5" />
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="tiles" className="flex-1 mt-0 data-[state=inactive]:hidden flex flex-col">
               <TilePalette />
