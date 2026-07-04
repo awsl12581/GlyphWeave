@@ -116,7 +116,8 @@ Content-Type: application/json
 
       // ── Route handler ──
       server.middlewares.use((req, res, next) => {
-        const url = new URL(req.url!, 'http://localhost')
+        const host = req.headers.host || 'localhost'
+        const url = new URL(req.url!, `http://${host}`)
         const pathname = url.pathname
 
         // Legacy redirects
@@ -128,7 +129,7 @@ Content-Type: application/json
 
         // API info page
         if (pathname === '/api' || pathname === '/api/') {
-const addr = server.httpServer?.address()
+          const addr = server.httpServer?.address()
           const port = addr && typeof addr !== 'string' ? addr.port : 5173
           res.writeHead(200, { 'Content-Type': 'text/html' })
           res.end(renderInfoPage(port))
