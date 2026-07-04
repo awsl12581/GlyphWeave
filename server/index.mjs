@@ -9,17 +9,18 @@
  *   node server/index.mjs [port]
  *
  * API:
- *   GET  /render?data=<base64>&theme=<themeId>&padding=<n>&scale=<n>
- *   POST /render  (JSON body: { tiles, layerTiles?, layers?, theme?, padding?, scale? })
+ *   GET  /api/render?data=<base64>&theme=<themeId>&padding=<n>&scale=<n>
+ *   POST /api/render  (JSON body: { tiles, layerTiles?, layers?, theme?, padding?, scale? })
+ *   GET  /api/health
  *
  *   Returns: image/png
  *
  * Examples:
  *   # Small map via GET
- *   curl "http://localhost:3001/render?data=$(echo -n '{"tiles":{"0,0":"wall"}}' | base64)" > map.png
+ *   curl "http://localhost:3001/api/render?data=$(echo -n '{"tiles":{"0,0":"wall"}}' | base64)" > map.png
  *
  *   # Large map via POST (pipe .gemap file)
- *   curl -X POST http://localhost:3001/render \
+ *   curl -X POST http://localhost:3001/api/render \
  *     -H "Content-Type: application/json" \
  *     -d @grand-realm-of-aethra.gemap > map.png
  */
@@ -79,6 +80,38 @@ async function handleRender(query, body) {
   return renderMap(data, { themeId, padding, scale })
 }
 
+const INFO_PAGE = (port) => `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>GlyphWeave Render API</title>
+<style>body{font-family:monospace;background:#111;color:#ccc;padding:2rem;max-width:800px;margin:auto}
+a{color:#8af}h1{color:#fff}code{background:#222;padding:0.2em 0.4em;border-radius:3px}
+pre{background:#222;padding:1em;border-radius:4px;overflow-x:auto}</style>
+</head><body>
+<h1>GlyphWeave Render API</h1>
+<p>Render tilemaps to PNG images.</p>
+<h2>GET (small maps)</h2>
+<pre><code>GET /api/render?data=&lt;base64&gt;&amp;theme=&lt;themeId&gt;</code></pre>
+<h2>POST (any size)</h2>
+<pre><code>POST /api/render
+Content-Type: application/json
+{ "tiles": {...}, "theme": "ansi-16", "padding": 1 }</code></pre>
+<h3>Parameters</h3>
+<table><tr><th>Param</th><th>Required</th><th>Description</th></tr>
+<tr><td><code>data</code> (GET)</td><td>Yes</td><td>Base64-encoded JSON</td></tr>
+<tr><td>body (POST)</td><td>Yes</td><td>Raw JSON (tiles/layerTiles/layers)</td></tr>
+<tr><td><code>theme</code></td><td>No</td><td><code>ansi-16</code> (default) or <code>cogmind</code></td></tr>
+<tr><td><code>padding</code></td><td>No</td><td>Extra tiles padding (default: 1)</td></tr>
+<tr><td><code>scale</code></td><td>No</td><td>Pixels per tile (default: auto-fit ≤4096px)</td></tr>
+</table>
+<h3>Example: POST a .gemap file</h3>
+<pre><code>curl -X POST http://localhost:${port}/api/render \
+  -H "Content-Type: application/json" \
+  -d @map.gemap > map.png</code></pre>
+<h3>Example: with theme override</h3>
+<pre><code>curl -X POST http://localhost:${port}/api/render?theme=cogmind \
+  -H "Content-Type: application/json" \
+  -d @map.gemap > map.png</code></pre>
+</body></html>`
+
 const server = http.createServer(async (req, res) => {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -95,13 +128,13 @@ const server = http.createServer(async (req, res) => {
   const query = Object.fromEntries(url.searchParams)
 
   // ── Health ──
-  if (url.pathname === '/health') {
+  if (url.pathname === '/api/health') {
     sendJSON(res, 200, { ok: true, version: 1 })
     return
   }
 
   // ── Render ──
-  if (url.pathname === '/render') {
+  if (url.pathname === '/api/render') {
     try {
       let body = null
       if (req.method === 'POST') {
@@ -126,34 +159,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── Info page ──
-  if (url.pathname === '/') {
-    sendHTML(res, `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>GlyphWeave Render API</title>
-<style>body{font-family:monospace;background:#111;color:#ccc;padding:2rem;max-width:800px;margin:auto}
-a{color:#8af}h1{color:#fff}code{background:#222;padding:0.2em 0.4em;border-radius:3px}
-pre{background:#222;padding:1em;border-radius:4px;overflow-x:auto}</style>
-</head><body>
-<h1>GlyphWeave Render API</h1>
-<p>Render tilemaps to PNG images.</p>
-<h2>GET (small maps)</h2>
-<pre><code>GET /render?data=&lt;base64&gt;&amp;theme=&lt;themeId&gt;</code></pre>
-<h2>POST (any size)</h2>
-<pre><code>POST /render
-Content-Type: application/json
-{ "tiles": {...}, "theme": "ansi-16", "padding": 1 }</code></pre>
-<h3>Parameters</h3>
-<table><tr><th>Param</th><th>Required</th><th>Description</th></tr>
-<tr><td><code>data</code> (GET)</td><td>Yes</td><td>Base64-encoded JSON</td></tr>
-<tr><td>body (POST)</td><td>Yes</td><td>Raw JSON (tiles/layerTiles/layers)</td></tr>
-<tr><td><code>theme</code></td><td>No</td><td><code>ansi-16</code> (default) or <code>cogmind</code></td></tr>
-<tr><td><code>padding</code></td><td>No</td><td>Extra tiles padding (default: 1)</td></tr>
-<tr><td><code>scale</code></td><td>No</td><td>Pixels per tile (default: auto-fit ≤4096px)</td></tr>
-</table>
-<h3>Example: POST a .gemap file</h3>
-<pre><code>curl -X POST http://localhost:${PORT}/render \\\n  -H "Content-Type: application/json" \\\n  -d @map.gemap > map.png</code></pre>
-<h3>Example: with theme override</h3>
-<pre><code>curl -X POST http://localhost:${PORT}/render?theme=cogmind \\\n  -H "Content-Type: application/json" \\\n  -d @map.gemap > map.png</code></pre>
-</body></html>`)
+  if (url.pathname === '/api' || url.pathname === '/api/') {
+    sendHTML(res, INFO_PAGE(PORT))
+    return
+  }
+
+  // ── Legacy redirects ──
+  if (url.pathname === '/' || url.pathname === '/render' || url.pathname === '/health') {
+    const target = url.pathname === '/' ? '/api/' : `/api${url.pathname}`
+    res.writeHead(308, { Location: target })
+    res.end()
     return
   }
 
@@ -161,8 +176,8 @@ Content-Type: application/json
 })
 
 server.listen(PORT, () => {
-  console.log(`GlyphWeave Render API running at http://localhost:${PORT}`)
-  console.log(`   GET  /render?data=<base64>&theme=<id>`)
-  console.log(`   POST /render  (JSON body)`)
-  console.log(`   GET  /health`)
+  console.log(`GlyphWeave Render API running at http://localhost:${PORT}/api`)
+  console.log(`   GET  /api/render?data=<base64>&theme=<id>`)
+  console.log(`   POST /api/render  (JSON body)`)
+  console.log(`   GET  /api/health`)
 })

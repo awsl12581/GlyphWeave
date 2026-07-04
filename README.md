@@ -47,7 +47,7 @@ Each tile is an ASCII glyph (`#`, `.`, `~`, `♣`, …). **Weave** them into a c
 - **Export / Import** as `.gemap` JSON — preserves layers, theme, and world name.
 - **Minimap** — real-time overview with viewport rectangle. Click to jump.
 - **View Distance** — configurable render padding for smooth panning.
-- **Render API** — generate PNG images from any map via `GET /render` or `POST /render`.
+- **Render API** — generate PNG images from any map via `GET /api/render` or `POST /api/render`.
 - **Keyboard shortcuts** — `B` brush, `E` eraser, `F` flood fill, `P` pan, `S` select, `G` grid toggle.
 - **Demo maps** — load "The Forgotten Catacombs" or "Grand Realm of Aethra" to explore.
 
@@ -68,7 +68,7 @@ pnpm dev
 
 Open `http://localhost:5173` — choose a world name, tile size, and theme, then start painting. Or click **Load Demo Map** to explore a pre-built dungeon.
 
-> The **Render API** is automatically available on the same port — `GET /render?data=<base64>` or `POST /render` with a JSON body. See the [render server docs](server/index.mjs) for details.
+> The **Render API** is automatically available on the same port under `/api/` — `GET /api/render?data=<base64>` or `POST /api/render` with a JSON body. See the [render server docs](server/index.mjs) for details.
 
 
 ## Keyboard Shortcuts
@@ -98,7 +98,7 @@ pnpm render-server
 ### POST (recommended for large maps)
 
 ```bash
-curl -X POST http://localhost:3001/render \
+curl -X POST http://localhost:3001/api/render \
   -H "Content-Type: application/json" \
   -d @my-map.gemap > map.png
 ```
@@ -107,7 +107,7 @@ curl -X POST http://localhost:3001/render \
 
 ```bash
 DATA=$(echo -n '{"tiles":{"0,0":"wall"}}' | base64)
-curl "http://localhost:3001/render?data=$DATA" > map.png
+curl "http://localhost:3001/api/render?data=$DATA" > map.png
 ```
 
 Parameters:
