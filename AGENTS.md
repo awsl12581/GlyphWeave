@@ -171,6 +171,62 @@ import { TileCell } from './TileCell'
 - 优先实用类，少写自定义 CSS
 - 颜色使用 Tailwind 调色板（`zinc-*` 系列），除非主题需要自定义
 
+### UI / 组件
+
+#### 禁止使用 Emoji 作为图标
+
+所有界面图标必须从 **Lucide**（`lucide-react`）中导入，禁止使用 Unicode Emoji 作为图标或装饰。
+
+```tsx
+// 正确：从 lucide-react 导入
+import { Plus, Trash2, Download, Paintbrush } from 'lucide-react'
+
+<Button>
+  <Plus className="h-4 w-4" />
+  添加图层
+</Button>
+
+// 错误：使用 emoji 代替图标
+<Button>+ 添加图层</Button>
+// 错误：使用 emoji 作为按钮图标
+<Button>X</Button>
+```
+
+#### 使用 shadcn/ui 基础组件
+
+所有 UI 元素（按钮、输入框、弹窗、选择器等）必须使用 `src/components/ui/` 下的 shadcn/ui 封装组件，不要自己写原生 HTML 标签的样式。
+
+```tsx
+// 正确
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+
+// 错误：直接写原生元素
+<button className="bg-zinc-800 rounded px-4 ...">保存</button>
+```
+
+#### 组件职责边界
+
+| 层 | 职责 | 禁止 |
+|------|------|------|
+| `pages/` | 页面布局、组合子组件 | 不包含业务逻辑 |
+| `panels/` | 侧边面板 UI + 用户操作 | 直接操作 Konva |
+| `toolbar/` | 工具切换按钮 | 直接读写 tile 数据 |
+| `canvas/` | Konva 渲染层 | 直接修改 store（只读） |
+| `ui/` | 通用原子组件 | 不包含项目业务逻辑 |
+
+#### Canvas 交互
+
+所有鼠标/键盘事件与 Konva Stage 的交互必须通过 `useCanvas` hook 处理，不要在组件中直接操作 Konva 实例。
+
+#### 状态管理边界
+
+- 地图数据（tiles、layers、history）→ `map-store.ts`
+- UI 状态（面板可见性、grid 开关、小地图）→ `ui-store.ts`
+- 临时表单状态、弹窗开关 → 可以用 `useState`（局部）
+- 禁止将地图数据或 UI 状态放在 React 组件内部 `useState` 中
+
 ---
 
 ## 5. Development Workflow
@@ -195,6 +251,39 @@ import { TileCell } from './TileCell'
 | `pnpm lint` | 代码检查 |
 | `pnpm typecheck` | TypeScript 类型检查 |
 | `pnpm test` | 运行测试 |
+| `pnpm doc-tree` | 输出当前 `src/` 目录树 |
+| `pnpm doc-tree:check` | 检查 README/AGENTS 的目录树是否最新 |
+
+### 目录树自动维护
+
+`AGENTS.md` 中包含 `src/` 的目录树（`## 6. Project Architecture Notes`），需随文件结构变更同步更新。
+
+#### AI Agent 工作流
+
+当你（AI）新建、删除或重命名文件后，应自动执行以下检查：
+
+```bash
+pnpm doc-tree:check
+```
+
+- 如果提示 **OUTDATED**，请立即更新 AGENTS.md 中的目录树块
+- 运行 `pnpm doc-tree` 参考当前实际的目录结构
+- 更新时保留 `#` 注释（描述性文字），只增删对应的目录/文件行
+- 如果新增了目录，添加有意义的注释；如果只是内部文件增减，可以保持目录级概览不展开
+
+> 注意：pre-commit hook 也会检查目录树一致性，过期的树会阻止提交。
+> 紧急绕过：`git commit --no-verify`
+
+#### 目录树风格指南
+
+| 元素 | 规则 |
+|------|------|
+| 根节点 | `src/` 作为第一行，无缩进 |
+| 目录 | 使用 `├── dirname/` 和 `└── dirname/`，末尾带 `/` |
+| 文件 | 使用 `├── filename.ext` 和 `└── filename.ext` |
+| 注释 | 在行尾用 `# 描述` 格式（README 用英文，AGENTS 用中文） |
+| 缩进 | 子级用 `│   `（竖线 + 3 空格）连接，最后一个用 `    `（4 空格） |
+| 粒度 | 保持目录级概览，不需要展开每个目录内的所有文件 |
 
 ---
 
@@ -202,7 +291,17 @@ import { TileCell } from './TileCell'
 
 ```
 src/
-├── types/index.ts            # 核心类型（TileType, TileColors, WorldConfig 等）
+├── main.tsx                  # 应用入口
+├── App.tsx                   # 根组件（Home ↔ Editor 路由）
+├── index.css                 # Tailwind CSS 样式入口
+├── lib/
+│   └── utils.ts             # shadcn/ui 工具函数（cn）
+├── types/
+│   └── index.ts             # 核心类型（TileType, TileColors, WorldConfig 等）
+├── assets/                   # 静态资源
+│   ├── hero.png             # 首页 Hero 图
+│   ├── react.svg
+│   └── vite.svg
 ├── constants/                # 纯数据：tiles, presets, themes, demo-map
 ├── stores/                   # Zustand 状态管理
 │   ├── map-store.ts          # 地图数据、历史栈、工具状态

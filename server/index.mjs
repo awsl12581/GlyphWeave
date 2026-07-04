@@ -133,7 +133,7 @@ const server = http.createServer(async (req, res) => {
 a{color:#8af}h1{color:#fff}code{background:#222;padding:0.2em 0.4em;border-radius:3px}
 pre{background:#222;padding:1em;border-radius:4px;overflow-x:auto}</style>
 </head><body>
-<h1>🧙 GlyphWeave Render API</h1>
+<h1>GlyphWeave Render API</h1>
 <p>Render tilemaps to PNG images.</p>
 <h2>GET (small maps)</h2>
 <pre><code>GET /render?data=&lt;base64&gt;&amp;theme=&lt;themeId&gt;</code></pre>
@@ -143,11 +143,11 @@ Content-Type: application/json
 { "tiles": {...}, "theme": "ansi-16", "padding": 1 }</code></pre>
 <h3>Parameters</h3>
 <table><tr><th>Param</th><th>Required</th><th>Description</th></tr>
-<tr><td><code>data</code> (GET)</td><td>✅</td><td>Base64-encoded JSON</td></tr>
-<tr><td>body (POST)</td><td>✅</td><td>Raw JSON (tiles/layerTiles/layers)</td></tr>
-<tr><td><code>theme</code></td><td>❌</td><td><code>ansi-16</code> (default) or <code>cogmind</code></td></tr>
-<tr><td><code>padding</code></td><td>❌</td><td>Extra tiles padding (default: 1)</td></tr>
-<tr><td><code>scale</code></td><td>❌</td><td>Pixels per tile (default: auto-fit ≤4096px)</td></tr>
+<tr><td><code>data</code> (GET)</td><td>Yes</td><td>Base64-encoded JSON</td></tr>
+<tr><td>body (POST)</td><td>Yes</td><td>Raw JSON (tiles/layerTiles/layers)</td></tr>
+<tr><td><code>theme</code></td><td>No</td><td><code>ansi-16</code> (default) or <code>cogmind</code></td></tr>
+<tr><td><code>padding</code></td><td>No</td><td>Extra tiles padding (default: 1)</td></tr>
+<tr><td><code>scale</code></td><td>No</td><td>Pixels per tile (default: auto-fit ≤4096px)</td></tr>
 </table>
 <h3>Example: POST a .gemap file</h3>
 <pre><code>curl -X POST http://localhost:${PORT}/render \\\n  -H "Content-Type: application/json" \\\n  -d @map.gemap > map.png</code></pre>
@@ -161,7 +161,7 @@ Content-Type: application/json
 })
 
 server.listen(PORT, () => {
-  console.log(`🧙 GlyphWeave Render API running at http://localhost:${PORT}`)
+  console.log(`GlyphWeave Render API running at http://localhost:${PORT}`)
   console.log(`   GET  /render?data=<base64>&theme=<id>`)
   console.log(`   POST /render  (JSON body)`)
   console.log(`   GET  /health`)

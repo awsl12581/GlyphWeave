@@ -19,7 +19,7 @@ function mapRenderPlugin(): Plugin {
         const mod = await import('./server/map-render.mjs')
         renderMap = mod.renderMap
         loaded = true
-        console.log('🧙 Map render API ready at /render and /health')
+        console.log('[Map] Render API ready at /render and /health')
       } catch (e) {
         console.warn('[map-render] Failed to load render module:', (e as Error).message)
         console.warn('[map-render] Install @napi-rs/canvas: pnpm add @napi-rs/canvas')

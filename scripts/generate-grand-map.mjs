@@ -390,7 +390,7 @@ const layerCounts = Object.fromEntries(
 const outputPath = new URL('../grand-realm-of-aethra.gemap', import.meta.url)
 writeFileSync(outputPath, JSON.stringify(mapData, null, 2), 'utf-8')
 
-console.log('✅ Generated: grand-realm-of-aethra.gemap')
+console.log('[OK] Generated: grand-realm-of-aethra.gemap')
 console.log(`   Map size: ${W}×${H} (${W * H} cells)`)
 console.log(`   Total tiles: ${totalTiles}`)
 console.log(`   Layers:`)

@@ -14,7 +14,7 @@ import { SettingsPanel } from '@/components/panels/SettingsPanel'
 import { ExportPanel } from '@/components/panels/ExportPanel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { PanelRightClose, PanelRightOpen, Settings } from 'lucide-react'
+import { Download, PanelRightClose, PanelRightOpen, Settings } from 'lucide-react'
 
 interface EditorPageProps {
   worldConfig: WorldConfig
@@ -84,7 +84,9 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
               <TabsTrigger value="tiles" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">Tiles</TabsTrigger>
               <TabsTrigger value="presets" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">Presets</TabsTrigger>
               <TabsTrigger value="layers" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">Layers</TabsTrigger>
-              <TabsTrigger value="export" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">📦</TabsTrigger>
+              <TabsTrigger value="export" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">
+                <Download className="w-3.5 h-3.5" />
+              </TabsTrigger>
               <TabsTrigger value="settings" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0 flex items-center gap-1">
                 <Settings className="w-3.5 h-3.5" />
               </TabsTrigger>

@@ -82,34 +82,7 @@ Open `http://localhost:5173` — choose a world name, tile size, and theme, then
 | Icons       | Lucide                 |
 | Render API  | @napi-rs/canvas        |
 
----
 
-## Project Structure
-
-```
-src/
-├── types/index.ts           # Core type definitions
-├── constants/
-│   ├── tiles.ts             # 25 tile type definitions
-│   ├── presets.ts           # 25 room/shape presets
-│   ├── themes.ts            # ANSI 16 & Cogmind color themes
-│   └── demo-map.ts          # Procedural demo map generator
-├── stores/
-│   ├── map-store.ts         # Zustand: tiles, layers, history, tools
-│   └── ui-store.ts          # Zustand: panels, grid, minimap, view distance
-├── hooks/
-│   ├── useCanvas.ts         # Konva mouse/touch interaction
-│   └── useKeyboard.ts       # Global keyboard shortcuts
-└── components/
-    ├── canvas/              # MapCanvas, TileCell, Minimap
-    ├── toolbar/             # Tool buttons + undo/redo
-    ├── panels/              # TilePalette, PresetsPanel, LayersPanel,
-    │                        # SettingsPanel, ExportPanel
-    ├── pages/               # HomePage, EditorPage
-    └── ui/                  # shadcn/ui primitives
-```
-
----
 
 ## Keyboard Shortcuts
 

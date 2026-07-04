@@ -82,34 +82,7 @@ pnpm dev
 | アイコン     | Lucide                  |
 | レンダーAPI  | @napi-rs/canvas         |
 
----
 
-## プロジェクト構造
-
-```
-src/
-├── types/index.ts           # コア型定義
-├── constants/
-│   ├── tiles.ts             # 25種類のタイル定義
-│   ├── presets.ts           # 25種類のルームプリセット
-│   ├── themes.ts            # ANSI 16 & Cogmind カラーテーマ
-│   └── demo-map.ts          # プロシージャルデモマップ生成
-├── stores/
-│   ├── map-store.ts         # Zustand: タイル、レイヤー、履歴、ツール
-│   └── ui-store.ts          # Zustand: パネル、グリッド、ミニマップ、視距離
-├── hooks/
-│   ├── useCanvas.ts         # Konva マウス/タッチ操作
-│   └── useKeyboard.ts       # グローバルキーボードショートカット
-└── components/
-    ├── canvas/              # MapCanvas, TileCell, Minimap
-    ├── toolbar/             # ツールボタン + 元に戻す/やり直し
-    ├── panels/              # タイルパレット, プリセットパネル, レイヤーパネル,
-    │                        # 設定パネル, エクスポートパネル
-    ├── pages/               # HomePage, EditorPage
-    └── ui/                  # shadcn/ui プリミティブ
-```
-
----
 
 ## Render API
 

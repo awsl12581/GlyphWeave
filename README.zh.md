@@ -82,34 +82,7 @@ pnpm dev
 | 图标       | Lucide                 |
 | 渲染 API   | @napi-rs/canvas        |
 
----
 
-## 项目结构
-
-```
-src/
-├── types/index.ts           # 核心类型定义
-├── constants/
-│   ├── tiles.ts             # 25 种格子定义
-│   ├── presets.ts           # 25 种房间预设
-│   ├── themes.ts            # ANSI 16 & Cogmind 主题配色
-│   └── demo-map.ts          # 过程化演示地图生成器
-├── stores/
-│   ├── map-store.ts         # Zustand: 格子、图层、历史、工具
-│   └── ui-store.ts          # Zustand: 面板、网格、小地图、视距
-├── hooks/
-│   ├── useCanvas.ts         # Konva 鼠标/触摸交互
-│   └── useKeyboard.ts       # 全局键盘快捷键
-└── components/
-    ├── canvas/              # MapCanvas, TileCell, Minimap
-    ├── toolbar/             # 工具按钮 + 撤销/重做
-    ├── panels/              # 格子面板, 预设面板, 图层面板,
-    │                        # 设置面板, 导出面板
-    ├── pages/               # HomePage, EditorPage
-    └── ui/                  # shadcn/ui 基础组件
-```
-
----
 
 ## 键盘快捷键
 

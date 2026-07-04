@@ -1,0 +1,53 @@
+#!/bin/sh
+# Pre-commit hook: check if documented directory tree is up to date.
+#
+# If the tree is outdated, warn and optionally update it.
+#
+# Usage:
+#   export DOC_TREE_UPDATE=1   # auto-update on mismatch
+#   export DOC_TREE_WARN=1     # only warn (don't block commit, don't update)
+#
+# By default, blocks the commit with instructions.
+
+set -e
+
+SCRIPT="$(git rev-parse --show-toplevel)/scripts/generate-tree.mjs"
+
+if [ ! -f "$SCRIPT" ]; then
+  exit 0
+fi
+
+if node "$SCRIPT" --check > /dev/null 2>&1; then
+  exit 0
+fi
+
+# Tree is outdated
+if [ "$DOC_TREE_UPDATE" = "1" ]; then
+  echo "[Tree] Updating directory tree in AGENTS.md..."
+  # Generate raw tree for reference
+  node "$SCRIPT" > /dev/null
+  echo "[WARN] Please manually update the tree blocks in AGENTS.md"
+  echo "       Run \`node scripts/generate-tree.mjs\` to see the current structure."
+  exit 1
+elif [ "$DOC_TREE_WARN" = "1" ]; then
+  echo "[WARN] Directory tree in AGENTS.md is outdated."
+  echo "       Run \`pnpm doc-tree\` to see current structure."
+  echo "       Run \`pnpm doc-tree:check\` for details."
+  echo ""
+  exit 0
+else
+  echo "[FAIL] Directory tree in AGENTS.md is outdated."
+  echo ""
+  echo "   Files were added, removed, or renamed, but the documented"
+  echo "   directory tree hasn't been updated."
+  echo ""
+  echo "   To fix:"
+  echo "     1. Run \`pnpm doc-tree\` to see current structure"
+  echo "     2. Update the tree blocks in AGENTS.md"
+  echo "     3. Stage the changes and commit again"
+  echo ""
+  echo "   To bypass (not recommended):"
+  echo "     git commit --no-verify"
+  echo ""
+  exit 1
+fi

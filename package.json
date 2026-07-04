@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "render-server": "node server/index.mjs"
+    "render-server": "node server/index.mjs",
+    "doc-tree": "node scripts/generate-tree.mjs",
+    "doc-tree:check": "node scripts/generate-tree.mjs --check"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
