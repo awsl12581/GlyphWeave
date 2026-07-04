@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
+import fs from 'fs'
 
 /**
  * Vite plugin: serves the map render API on the same dev server port.
@@ -15,25 +16,8 @@ function mapRenderPlugin(): Plugin {
   let renderMap: any = null
   let loaded = false
 
-  return {
-    name: 'map-render',
-    async configureServer(server) {
-      // Load the render module
-      try {
-        // @ts-expect-error -- server/map-render.mjs has no TS declarations
-        const mod = await import('./server/map-render.mjs')
-        renderMap = mod.renderMap
-        loaded = true
-        const addr = server.httpServer?.address()
-        const port = addr && typeof addr !== 'string' ? addr.port : 5173
-        console.log(`[Map] Render API ready at http://localhost:${port}/api`)
-      } catch (e) {
-        console.warn('[map-render] Failed to load render module:', (e as Error).message)
-        console.warn('[map-render] Install @napi-rs/canvas: pnpm add @napi-rs/canvas')
-      }
-
-      // ── HTML info page ──
-      const renderInfoPage = (port: number) => `<!DOCTYPE html>
+  // ── HTML info page ──
+  const renderInfoPage = (baseUrl: string) => `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>GlyphWeave Render API</title>
 <style>body{font-family:monospace;background:#111;color:#ccc;padding:2rem;max-width:800px;margin:auto}
 a{color:#8af}h1{color:#fff}code{background:#222;padding:0.2em 0.4em;border-radius:3px}
@@ -56,14 +40,31 @@ Content-Type: application/json
 <tr><td><code>scale</code></td><td>No</td><td>Pixels per tile (default: auto-fit ≤4096px)</td></tr>
 </table>
 <h3>Example: POST a .gemap file</h3>
-<pre><code>curl -X POST http://localhost:${port}/api/render \
+<pre><code>curl -X POST ${baseUrl}/api/render \
   -H "Content-Type: application/json" \
   -d @map.gemap > map.png</code></pre>
 <h3>Example: with theme override</h3>
-<pre><code>curl -X POST http://localhost:${port}/api/render?theme=cogmind \
+<pre><code>curl -X POST ${baseUrl}/api/render?theme=cogmind \
   -H "Content-Type: application/json" \
   -d @map.gemap > map.png</code></pre>
 </body></html>`
+
+  return {
+    name: 'map-render',
+    async configureServer(server) {
+      // Load the render module
+      try {
+        // @ts-expect-error -- server/map-render.mjs has no TS declarations
+        const mod = await import('./server/map-render.mjs')
+        renderMap = mod.renderMap
+        loaded = true
+        const addr = server.httpServer?.address()
+        const port = addr && typeof addr !== 'string' ? addr.port : 5173
+        console.log(`[Map] Render API ready at http://localhost:${port}/api`)
+      } catch (e) {
+        console.warn('[map-render] Failed to load render module:', (e as Error).message)
+        console.warn('[map-render] Install @napi-rs/canvas: pnpm add @napi-rs/canvas')
+      }
 
       // ── Render handler ──
       const handleRender = async (
@@ -124,7 +125,7 @@ Content-Type: application/json
           const addr = server.httpServer?.address()
           const port = addr && typeof addr !== 'string' ? addr.port : 5173
           res.writeHead(200, { 'Content-Type': 'text/html' })
-          res.end(renderInfoPage(port))
+          res.end(renderInfoPage(`http://localhost:${port}`))
           return
         }
 
@@ -173,10 +174,23 @@ Content-Type: application/json
         res.end()
       })
     },
+
+    // ── Generate static /api/index.html on build ──
+    writeBundle() {
+      const outDir = path.resolve(__dirname, 'dist')
+      const apiDir = path.join(outDir, 'api')
+      const baseUrl = 'https://hsiangnianian.github.io/GlyphWeave'
+      fs.mkdirSync(apiDir, { recursive: true })
+      fs.writeFileSync(path.join(apiDir, 'index.html'), renderInfoPage(baseUrl))
+      console.log('[Map] Generated api/index.html for gh-pages')
+    },
   }
 }
 
 export default defineConfig({
+  server: {
+    host: '0.0.0.0',
+  },
   plugins: [react(), tailwindcss(), mapRenderPlugin()],
   resolve: {
     alias: {
