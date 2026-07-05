@@ -5,6 +5,8 @@ import path, { resolve } from 'path'
 import fs, { readdirSync, readFileSync, statSync } from 'fs'
 import { renderMap } from './server/map-render.mjs'
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 /**
  * Vite plugin: serves the agents directory browser + map doc at /api.
  * JSON endpoints at /api/agents/list and /api/agents/read for ~/.agents/.
@@ -787,7 +789,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
   },
-  plugins: [react(), tailwindcss(), agentsBrowserPlugin()],
+  plugins: [react(), tailwindcss(), agentsBrowserPlugin(), cloudflare()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
