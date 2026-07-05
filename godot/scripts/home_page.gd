@@ -4,7 +4,7 @@ extends Control
 signal start_editor(config: Dictionary)
 
 const TILE_SIZES := [16, 20, 24, 32]
-const THEME_IDS := ["ansi-16", "cogmind"]
+const THEME_IDS := ["ansi-16", "cogmind-dark"]
 
 var _tile_size: int = 24
 var _theme_id: String = "ansi-16"
