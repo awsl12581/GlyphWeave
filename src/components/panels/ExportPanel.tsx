@@ -87,10 +87,6 @@ export function ExportPanel() {
         <Image className="w-3.5 h-3.5" />
         Export SVG
       </Button>
-      <Button variant="outline" className="w-full justify-start gap-2 text-xs h-8" onClick={() => handleRenderExport('png')}>
-        <Image className="w-3.5 h-3.5" />
-        Export PNG
-      </Button>
 
       <input
         ref={fileInputRef}
