@@ -48,7 +48,132 @@ tr:nth-child(even){background:#161616}
 <p>This page documents the GlyphWeave tilemap format (<strong>.gemap</strong>) and the Render API endpoint.
 It is designed for both humans and LLMs to read and understand how to generate valid maps.</p>
 
-<!-- ============================================================ -->
+<div id="playground" style="background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:1.5rem;margin:1.5rem 0">
+<h2 style="color:#8cf;margin:0 0 .5rem 0;border:none;padding:0;font-size:1.1rem">Playground</h2>
+<p style="color:#888;font-size:.85em;margin:0 0 1rem 0">Edit the map JSON below and click Render to see the result. Try changing <code style="font-size:.9em">"wall"</code> to <code style="font-size:.9em">"lava"</code> or switching the theme!</p>
+<div style="display:flex;gap:1rem;flex-wrap:wrap">
+  <div style="flex:1;min-width:300px">
+    <textarea id="pg-json" style="width:100%;height:260px;background:#111;color:#ccc;border:1px solid #333;border-radius:4px;padding:.6em;font-family:monospace;font-size:.82em;resize:vertical;tab-size:2" spellcheck="false"></textarea>
+  </div>
+  <div style="flex:1;min-width:200px;display:flex;flex-direction:column">
+    <div id="pg-preview" style="flex:1;background:#000;border:1px solid #333;border-radius:4px;min-height:200px;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:8px">
+      <span style="color:#555;font-size:.85em">Click Render</span>
+    </div>
+  </div>
+</div>
+<div style="display:flex;gap:.8rem;margin-top:.8rem;align-items:center;flex-wrap:wrap">
+  <label style="color:#888;font-size:.82em;display:flex;align-items:center;gap:.4em">
+    Theme:
+    <select id="pg-theme" style="background:#111;color:#ccc;border:1px solid #333;border-radius:3px;padding:.3em .5em;font-size:.9em">
+      <option value="ansi-16">ansi-16</option>
+      <option value="cogmind">cogmind</option>
+    </select>
+  </label>
+  <label style="color:#888;font-size:.82em;display:flex;align-items:center;gap:.4em">
+    Padding:
+    <input id="pg-padding" type="number" min="0" max="10" value="1" style="background:#111;color:#ccc;border:1px solid #333;border-radius:3px;padding:.3em .5em;width:60px;font-size:.9em">
+  </label>
+  <label style="color:#888;font-size:.82em;display:flex;align-items:center;gap:.4em">
+    Scale:
+    <input id="pg-scale" type="number" min="0" max="96" placeholder="auto" style="background:#111;color:#ccc;border:1px solid #333;border-radius:3px;padding:.3em .5em;width:70px;font-size:.9em">
+  </label>
+  <button id="pg-render" style="background:#2563eb;color:#fff;border:none;border-radius:4px;padding:.5em 1.2em;font-size:.85em;cursor:pointer">Render</button>
+  <button id="pg-examples" style="background:#1a3a5a;color:#8cf;border:1px solid #2a4a6a;border-radius:4px;padding:.5em .8em;font-size:.82em;cursor:pointer;margin-left:auto">Load Example</button>
+</div>
+</div>
+
+<script>
+(function() {
+  var origin = '${origin}';
+  var examples = [
+    {
+      name: '3×3 Room',
+      json: JSON.stringify({"tiles":{"0,0":"wall","1,0":"wall","2,0":"wall","0,1":"wall","1,1":"floor","2,1":"wall","0,2":"wall","1,2":"wall","2,2":"wall"},"themeId":"ansi-16"}, null, 2)
+    },
+    {
+      name: 'Dungeon Entrance',
+      json: JSON.stringify({"tiles":{"0,0":"wall","1,0":"wall","2,0":"wall","3,0":"wall","4,0":"wall","0,1":"wall","1,1":"floor","2,1":"floor","3,1":"floor","4,1":"wall","0,2":"wall","1,2":"floor","2,2":"stairsDown","3,2":"floor","4,2":"wall","0,3":"wall","1,3":"floor","2,3":"floor","3,3":"floor","4,3":"wall","0,4":"wall","1,4":"door","2,4":"wall","3,4":"wall","4,4":"wall"},"themeId":"ansi-16"}, null, 2)
+    },
+    {
+      name: 'Lava Cave',
+      json: JSON.stringify({"layerTiles":{"terrain":{"0,0":"wall","1,0":"wall","2,0":"wall","3,0":"wall","4,0":"wall","0,1":"wall","1,1":"lava","2,1":"lava","3,1":"lava","4,1":"wall","0,2":"wall","1,2":"lava","2,2":"lava","3,2":"lava","4,2":"wall","0,3":"wall","1,3":"lava","2,3":"lava","3,3":"lava","4,3":"wall","0,4":"wall","1,4":"wall","2,4":"wall","3,4":"wall","4,4":"wall"},"structures":{"1,1":"bridge","1,2":"bridge","1,3":"bridge"}},"layers":[{"id":"terrain","name":"Terrain","visible":true,"locked":false},{"id":"structures","name":"Structures","visible":true,"locked":false}],"themeId":"ansi-16"}, null, 2)
+    },
+    {
+      name: 'Forest Clearing',
+      json: JSON.stringify({"tiles":{"-2,-2":"tree","-1,-2":"tree","0,-2":"tree","-2,-1":"tree","-1,-1":"grass","0,-1":"tree","-2,0":"grass","-1,0":"fountain","0,0":"grass","-2,1":"tree","-1,1":"grass","0,1":"tree","-2,2":"tree","-1,2":"tree","0,2":"tree"},"themeId":"cogmind"}, null, 2)
+    }
+  ];
+  var exampleIdx = 0;
+
+  var textarea = document.getElementById('pg-json');
+  var preview = document.getElementById('pg-preview');
+  var themeSelect = document.getElementById('pg-theme');
+  var paddingInput = document.getElementById('pg-padding');
+  var scaleInput = document.getElementById('pg-scale');
+  var renderBtn = document.getElementById('pg-render');
+  var examplesBtn = document.getElementById('pg-examples');
+
+  // Set default example
+  textarea.value = examples[0].json;
+  themeSelect.value = 'ansi-16';
+
+  function render() {
+    var json;
+    try {
+      json = JSON.parse(textarea.value);
+    } catch(e) {
+      preview.innerHTML = '<span style="color:#f88;font-size:.82em">JSON Error: ' + e.message + '</span>';
+      return;
+    }
+
+    // Apply controls — query params override body fields
+    if (themeSelect.value) json.themeId = themeSelect.value;
+    var pad = parseInt(paddingInput.value, 10);
+    if (!isNaN(pad)) json.padding = pad;
+    var sc = parseFloat(scaleInput.value);
+    if (!isNaN(sc)) json.scale = sc;
+
+    preview.innerHTML = '<span style="color:#555;font-size:.85em">Rendering...</span>';
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', origin + '/api/render', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        preview.innerHTML = '<img src="data:image/svg+xml,' + encodeURIComponent(xhr.responseText) + '" alt="rendered map" style="max-width:100%;max-height:320px;border-radius:2px">';
+      } else {
+        preview.innerHTML = '<span style="color:#f88;font-size:.82em">Error ' + xhr.status + ': ' + (xhr.responseText || 'unknown') + '</span>';
+      }
+    };
+    xhr.onerror = function() {
+      preview.innerHTML = '<span style="color:#f88;font-size:.82em">Network error — cannot reach API</span>';
+    };
+    xhr.send(JSON.stringify(json));
+  }
+
+  renderBtn.addEventListener('click', render);
+
+  examplesBtn.addEventListener('click', function() {
+    exampleIdx = (exampleIdx + 1) % examples.length;
+    var ex = examples[exampleIdx];
+    textarea.value = ex.json;
+    examplesBtn.textContent = 'Load Example (' + ex.name + ')';
+    // Auto-render on example load
+    setTimeout(render, 50);
+  });
+
+  // Auto-render on load
+  setTimeout(render, 100);
+
+  // Keyboard shortcut: Ctrl+Enter to render
+  textarea.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      render();
+    }
+  });
+})();
+</script>
 <h2>1. Map Data Format (.gemap JSON)</h2>
 
 <p>A GlyphWeave map is a JSON object with the following structure. The only strictly required field is <code>tiles</code> or <code>layerTiles</code>.</p>
