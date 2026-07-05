@@ -1,8 +1,7 @@
-'use client'
 import { useRef, useCallback, type MutableRefObject } from 'react'
 import Konva from 'konva'
 import { useMapStore } from '@/stores/map-store'
-import { useUiStore, PYRAMID_LEVELS } from '@/stores/ui-store'
+import { useUiStore } from '@/stores/ui-store'
 
 export function useCanvas(stageRef: MutableRefObject<Konva.Stage | null>) {
   const isPanning = useRef(false)
@@ -35,31 +34,12 @@ export function useCanvas(stageRef: MutableRefObject<Konva.Stage | null>) {
     const stage = stageRef.current
     if (!stage) return
     const pointer = stage.getPointerPosition()
-    const zoomScale = useUiStore.getState().zoomScale
     if (!pointer) return
 
-    // Determine next pyramid level based on scroll direction
-    let nextLevel: number | undefined
-    if (e.evt.deltaY > 0) {
-      // Zoom out — find next lower level
-      for (let i = PYRAMID_LEVELS.length - 1; i >= 0; i--) {
-        if (PYRAMID_LEVELS[i] < zoomScale - 0.001) {
-          nextLevel = PYRAMID_LEVELS[i]
-          break
-        }
-      }
-    } else {
-      // Zoom in — find next higher level
-      for (let i = 0; i < PYRAMID_LEVELS.length; i++) {
-        if (PYRAMID_LEVELS[i] > zoomScale + 0.001) {
-          nextLevel = PYRAMID_LEVELS[i]
-          break
-        }
-      }
-    }
-
-    if (nextLevel === undefined) return // already at min/max
-    const clampedScale = nextLevel
+    const direction = e.evt.deltaY > 0 ? -1 : 1
+    const factor = Math.pow(1.12, direction)
+    const zoomScale = useUiStore.getState().zoomScale
+    const clampedScale = Math.max(0.0625, Math.min(16, zoomScale * factor))
 
     const mousePointTo = {
       x: (pointer.x - stage.x()) / zoomScale,

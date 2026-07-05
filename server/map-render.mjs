@@ -1,4 +1,6 @@
 import { TILE_TYPES, THEMES, MAX_OUTPUT_SIZE, TILE_SIZE, flattenTiles, computeBounds } from './map-shared.mjs'
+import { createCanvas } from '@napi-rs/canvas'
+
 export function renderMap(data, options = {}) {
   const themeId = options.themeId || 'ansi-16'
   const padding = options.padding ?? 1

@@ -1,63 +1,32 @@
 #!/usr/bin/env node
 
-/**
- * GlyphWeave Map Render Server
- *
- * HTTP API that renders tilemaps to PNG images.
- *
- * Usage:
- *   node server/index.mjs [port]
- *
- * API:
- *   GET  /api/render?data=<base64>&theme=<themeId>&padding=<n>&scale=<n>
- *   POST /api/render  (JSON body: { tiles, layerTiles?, layers?, theme?, padding?, scale? })
- *   GET  /api/health
- *
- *   Returns: image/png
- *
- * Examples:
- *   # Small map via GET
- *   curl "http://localhost:3001/api/render?data=$(echo -n '{"tiles":{"0,0":"wall"}}' | base64)" > map.png
- *
- *   # Large map via POST (pipe .gemap file)
- *   curl -X POST http://localhost:3001/api/render \
- *     -H "Content-Type: application/json" \
- *     -d @grand-realm-of-aethra.gemap > map.png
- */
-
 import http from 'http'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { renderMap } from './map-render.mjs'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = parseInt(process.argv[2], 10) || 3001
+const DIST_DIR = path.resolve(__dirname, '../dist')
 const AGENTS_DIR = path.resolve(process.env.HOME || '/home/hsiangnianian', '.agents')
 
-/**
- * Resolve a relative path within the agents directory.
- * Returns null on traversal attempts.
- */
+const MIME_MAP = {
+  '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
+  '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png',
+  '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2',
+  '.woff': 'font/woff', '.ttf': 'font/ttf',
+}
+
 function safeAgentPath(relPath) {
   const resolved = path.resolve(AGENTS_DIR, relPath || '')
   if (!resolved.startsWith(AGENTS_DIR)) return null
   return resolved
 }
 
-const MIME_MAP = {
-  '.md': 'text/markdown', '.json': 'application/json',
-  '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.ts': 'text/typescript', '.tsx': 'text/typescript',
-  '.html': 'text/html', '.css': 'text/css',
-  '.yaml': 'text/yaml', '.yml': 'text/yaml', '.toml': 'text/toml',
-  '.sh': 'text/x-shellscript', '.bash': 'text/x-shellscript',
-  '.py': 'text/x-python', '.rb': 'text/x-ruby',
-  '.go': 'text/x-go', '.rs': 'text/x-rust', '.java': 'text/x-java',
-}
-
 function sendJSON(res, status, data) {
-  const body = JSON.stringify(data)
   res.writeHead(status, { 'Content-Type': 'application/json' })
-  res.end(body)
+  res.end(JSON.stringify(data))
 }
 
 function sendError(res, status, message) {
@@ -73,7 +42,7 @@ function sendHTML(res, html) {
 function collectBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = []
-    req.on('data', (chunk) => chunks.push(chunk))
+    req.on('data', chunk => chunks.push(chunk))
     req.on('end', () => resolve(Buffer.concat(chunks)))
     req.on('error', reject)
   })
@@ -81,9 +50,7 @@ function collectBody(req) {
 
 async function handleRender(query, body) {
   let data, themeId, padding, scale
-
   if (body && body.length > 0) {
-    // POST mode: body is JSON
     const json = body.toString('utf-8')
     const parsed = JSON.parse(json)
     data = parsed
@@ -91,7 +58,6 @@ async function handleRender(query, body) {
     padding = parseInt(query.padding, 10) || parseInt(parsed.padding, 10) || 1
     scale = query.scale ? parseFloat(query.scale) : (parsed.scale ? parseFloat(parsed.scale) : undefined)
   } else {
-    // GET mode: base64 data in query param
     const dataB64 = query.data
     if (!dataB64) throw new Error('Missing "data" parameter')
     const json = Buffer.from(dataB64, 'base64').toString('utf-8')
@@ -100,11 +66,10 @@ async function handleRender(query, body) {
     padding = parseInt(query.padding, 10) || 1
     scale = query.scale ? parseFloat(query.scale) : undefined
   }
-
   return renderMap(data, { themeId, padding, scale })
 }
 
-const INFO_PAGE = (port) => `<!DOCTYPE html>
+const API_PAGE = (port) => `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>GlyphWeave Render API</title>
 <style>body{font-family:monospace;background:#111;color:#ccc;padding:2rem;max-width:800px;margin:auto}
 a{color:#8af}h1{color:#fff}code{background:#222;padding:0.2em 0.4em;border-radius:3px}
@@ -118,26 +83,30 @@ pre{background:#222;padding:1em;border-radius:4px;overflow-x:auto}</style>
 <pre><code>POST /api/render
 Content-Type: application/json
 { "tiles": {...}, "theme": "ansi-16", "padding": 1 }</code></pre>
-<h3>Parameters</h3>
-<table><tr><th>Param</th><th>Required</th><th>Description</th></tr>
-<tr><td><code>data</code> (GET)</td><td>Yes</td><td>Base64-encoded JSON</td></tr>
-<tr><td>body (POST)</td><td>Yes</td><td>Raw JSON (tiles/layerTiles/layers)</td></tr>
-<tr><td><code>theme</code></td><td>No</td><td><code>ansi-16</code> (default) or <code>cogmind</code></td></tr>
-<tr><td><code>padding</code></td><td>No</td><td>Extra tiles padding (default: 1)</td></tr>
-<tr><td><code>scale</code></td><td>No</td><td>Pixels per tile (default: auto-fit ≤4096px)</td></tr>
-</table>
-<h3>Example: POST a .gemap file</h3>
+<h3>Example</h3>
 <pre><code>curl -X POST http://localhost:${port}/api/render \
-  -H "Content-Type: application/json" \
-  -d @map.gemap > map.png</code></pre>
-<h3>Example: with theme override</h3>
-<pre><code>curl -X POST http://localhost:${port}/api/render?theme=cogmind \
   -H "Content-Type: application/json" \
   -d @map.gemap > map.png</code></pre>
 </body></html>`
 
+async function serveStatic(res, filePath) {
+  try {
+    const stat = fs.statSync(filePath)
+    if (!stat.isFile()) return false
+    const ext = path.extname(filePath).toLowerCase()
+    const mime = MIME_MAP[ext] || 'application/octet-stream'
+    const content = fs.readFileSync(filePath)
+    res.writeHead(200, {
+      'Content-Type': mime,
+      'Content-Length': content.length,
+      'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+    })
+    res.end(content)
+    return true
+  } catch { return false }
+}
+
 const server = http.createServer(async (req, res) => {
-  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -151,13 +120,13 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
   const query = Object.fromEntries(url.searchParams)
 
-  // ── Health ──
+  // ── API: Health ──
   if (url.pathname === '/api/health') {
     sendJSON(res, 200, { ok: true, version: 1 })
     return
   }
 
-  // ── Render ──
+  // ── API: Render ──
   if (url.pathname === '/api/render') {
     try {
       let body = null
@@ -167,9 +136,7 @@ const server = http.createServer(async (req, res) => {
         sendError(res, 405, 'Method not allowed')
         return
       }
-
       const pngBuffer = await handleRender(query, body)
-
       res.writeHead(200, {
         'Content-Type': 'image/png',
         'Content-Length': pngBuffer.length,
@@ -182,7 +149,7 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // ── Agent Skills Directory: list ──
+  // ── API: Agents list ──
   if (url.pathname === '/api/agents/list') {
     try {
       const relPath = query.path || ''
@@ -207,7 +174,7 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // ── Agent Skills Directory: read file ──
+  // ── API: Agents read ──
   if (url.pathname === '/api/agents/read') {
     try {
       const relPath = query.path
@@ -219,38 +186,33 @@ const server = http.createServer(async (req, res) => {
       if (stat.size > 1024 * 1024) { sendError(res, 413, 'File too large (max 1MB)'); return }
       const buffer = fs.readFileSync(resolved)
       if (buffer.includes(0)) { sendError(res, 400, 'Cannot preview binary files'); return }
-      const ext = path.extname(relPath).toLowerCase()
-      sendJSON(res, 200, {
-        content: buffer.toString('utf-8'),
-        size: stat.size,
-        mime: MIME_MAP[ext] || 'text/plain',
-      })
+      sendJSON(res, 200, { content: buffer.toString('utf-8'), size: stat.size })
     } catch (err) {
       sendError(res, 500, err.message)
     }
     return
   }
 
-  // ── Info page ──
+  // ── API: info page ──
   if (url.pathname === '/api' || url.pathname === '/api/') {
-    sendHTML(res, INFO_PAGE(PORT))
+    sendHTML(res, API_PAGE(PORT))
     return
   }
 
-  // ── Legacy redirects ──
-  if (url.pathname === '/' || url.pathname === '/render' || url.pathname === '/health') {
-    const target = url.pathname === '/' ? '/api/' : `/api${url.pathname}`
-    res.writeHead(308, { Location: target })
-    res.end()
-    return
+  // ── SPA: serve static files ──
+  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/favicon')) {
+    if (await serveStatic(res, path.join(DIST_DIR, url.pathname))) return
   }
+
+  // ── SPA fallback: serve index.html for all non-API routes ──
+  if (await serveStatic(res, path.join(DIST_DIR, url.pathname === '/' ? 'index.html' : url.pathname.slice(1)))) return
+  if (await serveStatic(res, path.join(DIST_DIR, 'index.html'))) return
 
   sendError(res, 404, 'Not found')
 })
 
 server.listen(PORT, () => {
-  console.log(`GlyphWeave Render API running at http://localhost:${PORT}/api`)
-  console.log(`   GET  /api/render?data=<base64>&theme=<id>`)
-  console.log(`   POST /api/render  (JSON body)`)
-  console.log(`   GET  /api/health`)
+  console.log(`GlyphWeave running at http://localhost:${PORT}`)
+  console.log(`   Frontend:  http://localhost:${PORT}/`)
+  console.log(`   API:       POST/GET /api/render`)
 })

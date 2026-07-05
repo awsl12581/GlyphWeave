@@ -1,15 +1,11 @@
-'use client'
-import { useEffect, useState, useMemo, type RefObject } from 'react'
+import { useEffect, useState, useMemo, type RefObject, type MutableRefObject } from 'react'
 import { Stage, Layer, Rect, Line } from 'react-konva'
 import Konva from 'konva'
 import { TileCell } from './TileCell'
-import { consolidateTiles, getPyramidBlockSize } from './pyramid'
-import type { ConsolidatedTile } from './pyramid'
 import { useCanvas } from '@/hooks/useCanvas'
 import { useMapStore } from '@/stores/map-store'
 import { useUiStore } from '@/stores/ui-store'
 import { THEMES } from '@/constants/themes'
-import type { MutableRefObject } from 'react'
 
 function getVisibleRange(stage: Konva.Stage | null, tileSize: number, w: number, h: number, padding: number) {
   if (!stage) return { minX: -10, minY: -10, maxX: 10, maxY: 10 }
@@ -36,14 +32,11 @@ export function MapCanvas({ containerRef, stageRef }: MapCanvasProps) {
   const tiles = useMapStore((s) => s.tiles)
   const layers = useMapStore((s) => s.layers)
   const showGrid = useUiStore((s) => s.showGrid)
-  const zoomScale = useUiStore((s) => s.zoomScale)
   const viewDistance = useUiStore((s) => s.viewDistance)
   const currentTool = useMapStore((s) => s.currentTool)
   const themeId = useMapStore((s) => s.themeId)
   const theme = THEMES[themeId]
   const { tileSize, handleWheel, handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave } = useCanvas(stageRef)
-
-  const blockSize = getPyramidBlockSize(zoomScale)
 
   const [size, setSize] = useState({ width: 800, height: 600 })
 
@@ -65,30 +58,33 @@ export function MapCanvas({ containerRef, stageRef }: MapCanvasProps) {
   )
 
   const visibleTiles = useMemo(() => {
-    const result: ConsolidatedTile[] = []
+    const result: Array<{ key: string; gridX: number; gridY: number; tileTypeId: string }> = []
     for (const layer of layers) {
       if (!layer.visible) continue
       const layerTiles = tiles[layer.id]
       if (!layerTiles) continue
-      const consolidated = consolidateTiles(layerTiles, blockSize, visibleRange)
-      for (const tile of consolidated) {
-        tile.key = `${layer.id}:${tile.key}`
-        result.push(tile)
+      for (const [key, tileTypeId] of Object.entries(layerTiles)) {
+        if (!tileTypeId) continue
+        const [sx, sy] = key.split(',')
+        const x = parseInt(sx, 10)
+        const y = parseInt(sy, 10)
+        if (x >= visibleRange.minX && x <= visibleRange.maxX && y >= visibleRange.minY && y <= visibleRange.maxY) {
+          result.push({ key: `${layer.id}:${key}`, gridX: x, gridY: y, tileTypeId })
+        }
       }
     }
     return result
-  }, [tiles, layers, visibleRange, blockSize])
+  }, [tiles, layers, visibleRange])
 
   const gridLineElements = useMemo(() => {
     if (!showGrid) return null
     const lines: React.ReactElement[] = []
     const { minX, minY, maxX, maxY } = visibleRange
-    // Align grid to block boundaries when consolidated
-    const step = Math.max(blockSize, 1)
-    const gsx = (Math.floor(minX / step)) * step * tileSize
-    const gsy = (Math.floor(minY / step)) * step * tileSize
-    const gex = (Math.ceil((maxX + 1) / step)) * step * tileSize
-    const gey = (Math.ceil((maxY + 1) / step)) * step * tileSize
+    const step = 1
+    const gsx = Math.floor(minX / step) * step * tileSize
+    const gsy = Math.floor(minY / step) * step * tileSize
+    const gex = Math.ceil((maxX + 1) / step) * step * tileSize
+    const gey = Math.ceil((maxY + 1) / step) * step * tileSize
     const gxStart = Math.floor(minX / step) * step
     const gxEnd = Math.ceil((maxX + 1) / step) * step
     const gyStart = Math.floor(minY / step) * step
@@ -100,7 +96,7 @@ export function MapCanvas({ containerRef, stageRef }: MapCanvasProps) {
       lines.push(<Line key={`gh${gy}`} points={[gsx, gy * tileSize, gex, gy * tileSize]} stroke="#222" strokeWidth={0.5} listening={false} />)
     }
     return lines
-  }, [showGrid, visibleRange, tileSize, blockSize])
+  }, [showGrid, visibleRange, tileSize])
 
   return (
     <Stage
@@ -122,7 +118,7 @@ export function MapCanvas({ containerRef, stageRef }: MapCanvasProps) {
             x={gridX}
             y={gridY}
             tileTypeId={tileTypeId}
-            tileSize={tileSize * blockSize}
+            tileSize={tileSize}
             colors={theme.colors[tileTypeId] || { fgColor: '#fff', bgColor: '#000' }}
           />
         ))}

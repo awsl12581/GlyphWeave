@@ -1,17 +1,4 @@
 {
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    },
-    "jsx": "preserve",
-    "allowJs": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler"
-  },
   "files": [],
   "references": [
     {

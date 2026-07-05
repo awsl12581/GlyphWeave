@@ -5,8 +5,6 @@ import path, { resolve } from 'path'
 import fs, { readdirSync, readFileSync, statSync } from 'fs'
 import { renderMap } from './server/map-render.mjs'
 
-import { cloudflare } from "@cloudflare/vite-plugin";
-
 /**
  * Vite plugin: serves the agents directory browser + map doc at /api.
  * JSON endpoints at /api/agents/list and /api/agents/read for ~/.agents/.
@@ -777,9 +775,9 @@ Source: <a href="https://github.com/HsiangNianian/GlyphWeave">github.com/HsiangN
     writeBundle() {
       const outDir = path.resolve(__dirname, 'dist')
       const apiDir = path.join(outDir, 'api')
-      const baseUrl = process.env.CF_PAGES_URL || process.env.PUBLIC_URL || 'https://[your-domain]'
+      const baseUrl = 'http://localhost:3001'
       fs.mkdirSync(apiDir, { recursive: true })
-      fs.writeFileSync(path.join(apiDir, 'index.html'), agentsInfoPage(baseUrl))
+      fs.writeFileSync(path.join(apiDir, 'index.html'), agentsInfoPage(baseUrl || 'http://localhost:3001'))
       console.log('[Agents] Generated api/index.html (baseUrl=' + baseUrl + ')')
     },
   }
@@ -789,7 +787,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
   },
-  plugins: [react(), tailwindcss(), agentsBrowserPlugin(), cloudflare()],
+  plugins: [react(), tailwindcss(), agentsBrowserPlugin()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
