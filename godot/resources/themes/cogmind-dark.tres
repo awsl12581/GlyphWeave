@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ThemeBase" load_steps=2 format=3 uid="uid://cogminddark001"]
+[gd_resource type="Resource" script_class="ThemeBase" format=3 uid="uid://ba17851ywcm3y"]
 
 [ext_resource type="Script" path="res://resources/themes/theme_base.gd" id="1_theme"]
 
