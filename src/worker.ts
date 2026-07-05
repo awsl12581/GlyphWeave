@@ -9,7 +9,7 @@ let resvgInit: Promise<any> | null = null
 function getResvg(env: Env) {
   if (!resvgInit) {
     resvgInit = (async () => {
-      const wasmResponse = await env.ASSETS.fetch(new Request(new URL('https://placeholder/resvg-wasm.wasm')))
+      const wasmResponse = await env.ASSETS.fetch(new URL('/resvg-wasm.wasm', 'http://placeholder'))
       const wasmBytes = await wasmResponse.arrayBuffer()
       const resvgPkg = await import('@resvg/resvg-wasm')
       await resvgPkg.initWasm(wasmBytes)
