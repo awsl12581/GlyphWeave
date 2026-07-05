@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 
-import { FileCode, MapIcon, Upload } from 'lucide-react'
+import { FileTree, MapIcon, Upload } from 'lucide-react'
 
 const TILE_SIZES = [16, 20, 24, 32]
 
@@ -204,8 +204,8 @@ export function HomePage({ onStart }: HomePageProps) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
           >
-            <FileCode className="w-3.5 h-3.5" />
-            Render API
+            <FileTree className="w-3.5 h-3.5" />
+            Agent Skills
           </a>
         </div>
 
