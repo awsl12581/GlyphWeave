@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "glyphweave",
   "compatibility_date": "2026-07-05",
+  "pages_build_output_dir": "dist",
   "compatibility_flags": [
     "nodejs_compat"
   ]
