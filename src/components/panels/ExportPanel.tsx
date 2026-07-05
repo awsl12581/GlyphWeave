@@ -1,12 +1,12 @@
-'use client'
 import { useCallback, useRef } from 'react'
 import { useMapStore } from '@/stores/map-store'
 import { Button } from '@/components/ui/button'
-import { Download, Upload } from 'lucide-react'
+import { Download, Upload, Image } from 'lucide-react'
 
 export function ExportPanel() {
   const exportMap = useMapStore((s) => s.exportMap)
   const importMap = useMapStore((s) => s.importMap)
+  const worldName = useMapStore((s) => s.worldName)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleExport = useCallback(() => {
@@ -37,6 +37,33 @@ export function ExportPanel() {
     e.target.value = ''
   }, [importMap])
 
+  const handleRenderExport = useCallback(async (format: 'svg' | 'png') => {
+    const data = exportMap()
+    const name = data.worldName.replace(/\s+/g, '_')
+
+    // Try the local API first (works in dev / self-hosted Node server)
+    const baseUrl = window.location.origin
+    const url = `${baseUrl}/api/render`
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, format }),
+      })
+      if (!res.ok) throw new Error(`API returned ${res.status}`)
+      const blob = await res.blob()
+      const dlUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = dlUrl
+      a.download = `${name}.${format}`
+      a.click()
+      URL.revokeObjectURL(dlUrl)
+    } catch (err) {
+      console.error('Render export failed:', err)
+    }
+  }, [exportMap])
+
   return (
     <div className="flex flex-col gap-3 p-3">
       <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Export / Import</h4>
@@ -45,12 +72,26 @@ export function ExportPanel() {
       </p>
       <Button variant="outline" className="w-full justify-start gap-2 text-xs h-8" onClick={handleExport}>
         <Download className="w-3.5 h-3.5" />
-        Export Map
+        Export .gemap
       </Button>
       <Button variant="outline" className="w-full justify-start gap-2 text-xs h-8" onClick={handleImport}>
         <Upload className="w-3.5 h-3.5" />
-        Import Map
+        Import .gemap
       </Button>
+
+      <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider pt-1">Render</h4>
+      <p className="text-[11px] text-zinc-500 leading-relaxed">
+        Render the full map to an image via the API.
+      </p>
+      <Button variant="outline" className="w-full justify-start gap-2 text-xs h-8" onClick={() => handleRenderExport('svg')}>
+        <Image className="w-3.5 h-3.5" />
+        Export SVG
+      </Button>
+      <Button variant="outline" className="w-full justify-start gap-2 text-xs h-8" onClick={() => handleRenderExport('png')}>
+        <Image className="w-3.5 h-3.5" />
+        Export PNG
+      </Button>
+
       <input
         ref={fileInputRef}
         type="file"
