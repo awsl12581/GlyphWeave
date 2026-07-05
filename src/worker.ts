@@ -58,7 +58,7 @@ export default {
           return new Response('Method not allowed', { status: 405 })
         }
 
-        const svg = renderMapSVG(data, { themeId, padding, scale })
+        const svg = renderMapSVG(data, { themeId, padding, scale, theme: data.theme })
         return new Response(svg, {
           headers: { ...corsHeaders, 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=3600' },
         })

@@ -43,7 +43,7 @@ function apiPlugin(): Plugin {
           } else {
             res.statusCode = 405; res.end('Method not allowed'); return
           }
-          const pngBuffer = renderMap(data, { themeId, padding, scale })
+          const pngBuffer = renderMap(data, { themeId, padding, scale, theme: data.theme })
           res.writeHead(200, {
             'Content-Type': 'image/png',
             'Content-Length': pngBuffer.length,

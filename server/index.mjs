@@ -60,7 +60,7 @@ async function handleRender(query, body) {
     padding = parseInt(query.padding, 10) || 1
     scale = query.scale ? parseFloat(query.scale) : undefined
   }
-  return renderMap(data, { themeId, padding, scale })
+  return renderMap(data, { themeId, padding, scale, theme: data.theme })
 }
 
 

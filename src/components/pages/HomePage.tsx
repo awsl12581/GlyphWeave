@@ -10,15 +10,16 @@ import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 
-import { FolderTree, MapIcon, Upload } from 'lucide-react'
+import { MapIcon, Upload } from 'lucide-react'
 
 const TILE_SIZES = [16, 20, 24, 32]
 
 interface HomePageProps {
   onStart: (config: WorldConfig) => void
+  onWorkshop: () => void
 }
 
-export function HomePage({ onStart }: HomePageProps) {
+export function HomePage({ onStart, onWorkshop }: HomePageProps) {
   const [worldName, setWorldName] = useState('My Roguelike World')
   const [tileSize, setTileSize] = useState(24)
   const [themeId, setThemeId] = useState('ansi-16')
@@ -199,15 +200,13 @@ export function HomePage({ onStart }: HomePageProps) {
         </div>
 
         <div className="flex justify-center pt-2">
-          <a
-            href={`/api`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={onWorkshop}
             className="inline-flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
           >
-            <FolderTree className="w-3.5 h-3.5" />
-            Agent Skills
-          </a>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Theme Workshop
+          </button>
         </div>
 
         <input

@@ -5,8 +5,12 @@ export function renderMap(data, options = {}) {
   const themeId = options.themeId || 'ansi-16'
   const padding = options.padding ?? 1
   const explicitScale = options.scale
+  const customTheme = options.theme
 
-  const theme = THEMES[themeId]
+  const themes = customTheme
+    ? { ...THEMES, [themeId]: { ...customTheme, colors: { ...customTheme.colors } } }
+    : THEMES
+  const theme = themes[themeId]
   if (!theme) throw new Error(`Unknown theme: ${themeId}`)
 
   const tiles = flattenTiles(data)
