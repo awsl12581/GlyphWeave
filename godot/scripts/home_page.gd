@@ -29,7 +29,7 @@ func _ready() -> void:
 
 func _setup_tile_size_buttons() -> void:
 	var container: HBoxContainer = %TileSizeContainer
-	var group = %TileSizeGroup
+	var group = ButtonGroup.new()
 	for sz in TILE_SIZES:
 		var btn: Button = Button.new()
 		btn.text = "%dpx" % sz
