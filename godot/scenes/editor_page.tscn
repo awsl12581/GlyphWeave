@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://editorpage001"]
+[gd_scene load_steps=7 format=3 uid="uid://editorpage001"]
 
 [ext_resource type="Script" path="res://scripts/editor_page.gd" id="1_script"]
 [ext_resource type="Script" path="res://scripts/canvas_controller.gd" id="2_canvas"]
@@ -22,6 +22,7 @@ corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
+
 [node name="EditorPage" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -40,7 +41,6 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0, 0, 0, 1)
 
-# ── Main Layout ──
 [node name="MainLayout" type="HBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -50,13 +50,11 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 0
 
-# ── Toolbar ──
 [node name="Toolbar" type="Control" parent="MainLayout"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(48, 0)
 
-# ── Canvas Area ──
 [node name="CanvasContainer" type="SubViewportContainer" parent="MainLayout"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -81,8 +79,6 @@ unique_name_in_owner = true
 [node name="GridOverlay" type="Node2D" parent="MainLayout/CanvasContainer/SubViewport/CanvasRoot"]
 unique_name_in_owner = true
 
-# ── Canvas overlays (back button, minimap, toggle panel) ──
-
 [node name="BackButton" type="Button" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
@@ -90,7 +86,7 @@ offset_left = 12.0
 offset_top = 12.0
 offset_right = 80.0
 offset_bottom = 32.0
-text = "← Home"
+text = "Home"
 theme_override_font_sizes/font_size = 10
 theme_override_colors/font_color = Color(0.4431373, 0.4431373, 0.4431373)
 theme_override_styles/normal = SubResource("btn_flat")
@@ -102,12 +98,11 @@ offset_left = 1244.0
 offset_top = 760.0
 offset_right = 1272.0
 offset_bottom = 788.0
-text = "◨"
+text = "[>]"
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.9411765, 0.9411765, 0.9411765)
 theme_override_styles/normal = SubResource("btn_flat")
 
-# ── Side Panel ──
 [node name="SidePanel" type="PanelContainer" parent="MainLayout"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -127,7 +122,6 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 
-# Panel placeholders — scripts attached at runtime
 [node name="TilePalette" type="Control" parent="MainLayout/SidePanel/TabContainer/PanelContent"]
 unique_name_in_owner = true
 layout_mode = 1
@@ -168,7 +162,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 visible = false
 
-# ── Minimap (top-right corner) ──
 [node name="Minimap" type="Control" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
