@@ -34,26 +34,6 @@ tr:nth-child(even){background:#161616}
 .tag-string{color:#8f8}
 .tag-number{color:#8cf}
 .tag-object{color:#fc8}
-#agents-browser{display:flex;gap:0;border:1px solid #333;border-radius:6px;margin:1em 0;min-height:480px;max-height:70vh;background:#1a1a1a;overflow:hidden}
-#agents-tree{width:300px;min-width:300px;overflow-y:auto;border-right:1px solid #333;padding:8px 0;font-size:.85em;background:#161616}
-#agents-viewer{flex:1;overflow-y:auto;padding:0}
-.tree-node{display:flex;align-items:center;gap:6px;padding:3px 12px;cursor:pointer;color:#ccc;white-space:nowrap;user-select:none}
-.tree-node:hover{background:#2a2a2a}
-.tree-node.selected{background:#2a3a5a;color:#fff}
-.tree-node .arrow{display:inline-block;width:14px;text-align:center;color:#666;font-size:.75em;flex-shrink:0}
-.tree-node .arrow.empty{visibility:hidden}
-.tree-node .icon{flex-shrink:0;font-size:1em;width:18px;text-align:center}
-.tree-node .label{overflow:hidden;text-overflow:ellipsis}
-.tree-children{display:none}
-.tree-children.open{display:block}
-.viewer-header{display:flex;align-items:center;gap:8px;padding:8px 16px;background:#1a1a1a;border-bottom:1px solid #333;font-size:.82em;color:#888;position:sticky;top:0;z-index:1}
-.viewer-header .file-path{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.viewer-header .file-size{color:#555;flex-shrink:0}
-.viewer-content{padding:0;margin:0;overflow-x:auto}
-.viewer-content pre{margin:0;padding:12px 16px;background:#111;font-size:.82em;line-height:1.5;tab-size:2}
-.viewer-content pre code{background:transparent;padding:0;font-family:'Cascadia Code','Fira Code','JetBrains Mono','Consolas',monospace}
-.viewer-empty{display:flex;align-items:center;justify-content:center;height:100%;color:#555;font-size:.9em;padding:2em;text-align:center}
-.tree-loading{padding:12px;color:#555;text-align:center;font-size:.85em}
 .badge{display:inline-block;background:#2a2a2a;color:#888;padding:0 .4em;border-radius:3px;font-size:.8em;margin-left:6px}
 .badge-md{background:#2a3a2a;color:#8f8}.badge-json{background:#3a3a2a;color:#ff8}.badge-js{background:#3a2a2a;color:#fa8}.badge-ts{background:#2a2a3a;color:#8af}.badge-img{background:#3a2a3a;color:#f8f}
 .viewer-content .hl-kw{color:#ff79c6}.viewer-content .hl-str{color:#f1fa8c}.viewer-content .hl-com{color:#6272a4}
@@ -66,7 +46,7 @@ tr:nth-child(even){background:#161616}
 <h1>GlyphWeave Render API &amp; Map Format</h1>
 
 <p>This page documents the GlyphWeave tilemap format (<strong>.gemap</strong>) and the Render API endpoint.
-It is designed for both humans and LLMs (AI agents) to read and understand how to generate valid maps.</p>
+It is designed for both humans and LLMs to read and understand how to generate valid maps.</p>
 
 <!-- ============================================================ -->
 <h2>1. Map Data Format (.gemap JSON)</h2>
@@ -254,8 +234,6 @@ visible layers are composited top-to-bottom, with later layers overwriting earli
 <tbody>
 <tr><td><code>/api/render</code></td><td>GET, POST</td><td>Render a tilemap to SVG</td></tr>
 <tr><td><code>/api/health</code></td><td>GET</td><td><code>{"ok":true,"version":1}</code></td></tr>
-<tr><td><code>/api/agents/list</code></td><td>GET</td><td>List files in <code>~/.agents/</code> directory (dev/self-hosted only)</td></tr>
-<tr><td><code>/api/agents/read</code></td><td>GET</td><td>Read a file from <code>~/.agents/</code> (dev/self-hosted only)</td></tr>
 <tr><td><code>/api</code></td><td>GET</td><td>This documentation page</td></tr>
 </tbody>
 </table>
@@ -422,7 +400,7 @@ The theme ID is passed as a top-level field in the map JSON or as a query parame
 <h2>8. LLM Authoring Guide</h2>
 
 <div class="note">
-<strong>For AI agents generating maps:</strong> Follow these guidelines to produce valid, visually coherent maps.
+<strong>For LLMs generating maps:</strong> Follow these guidelines to produce valid, visually coherent maps.
 </div>
 
 <h3>Design Principles</h3>
@@ -494,161 +472,6 @@ tiles["{doorX},{oy+h+1}"] = "door"</code></pre>
 //   W F F F W
 //   W W W W W</code></pre>
 
-<!-- ============================================================ -->
-<h2>10. Agent Skills Directory</h2>
-
-<p>Browse the <code>~/.agents/</code> directory tree below. Click a folder to expand, click a file to preview its contents.</p>
-
-<div id="agents-browser">
-  <div id="agents-tree"><div class="tree-loading">Loading...</div></div>
-  <div id="agents-viewer">
-    <div class="viewer-empty">Select a file to preview</div>
-  </div>
-</div>
-
-<script>
-(function(){
-  var API = (location.pathname.startsWith('/api') ? '' : '/api') + '/agents';
-  var expanded = {};
-  var selectedPath = null;
-  var treeEl = document.getElementById('agents-tree');
-  var viewerEl = document.getElementById('agents-viewer');
-
-  function listDir(relPath, cb) {
-    var x = new XMLHttpRequest();
-    x.open('GET', API + '/list?path=' + encodeURIComponent(relPath), true);
-    x.onload = function() { if (x.status===200) cb(null, JSON.parse(x.responseText).entries); else cb(new Error(String(x.status))); };
-    x.onerror = function() { cb(new Error('Network error')); };
-    x.send();
-  }
-  function readFile(relPath, cb) {
-    var x = new XMLHttpRequest();
-    x.open('GET', API + '/read?path=' + encodeURIComponent(relPath), true);
-    x.onload = function() { if (x.status===200) cb(null, JSON.parse(x.responseText)); else cb(new Error(String(x.status))); };
-    x.onerror = function() { cb(new Error('Network error')); };
-    x.send();
-  }
-
-  function fileIcon(name) {
-    var ext = name.split('.').pop().toLowerCase();
-    if (['md','markdown'].includes(ext)) return '\\uD83D\\uDCC4';
-    if (['json'].includes(ext)) return '\\uD83D\\uDCCB';
-    if (['js','mjs','cjs'].includes(ext)) return '\\uD83D\\uDCDC';
-    if (['ts','tsx'].includes(ext)) return '\\uD83D\\uDCD8';
-    if (['yml','yaml','toml'].includes(ext)) return '\\u2699\\uFE0F';
-    if (['html','css','scss'].includes(ext)) return '\\uD83C\\uDFA8';
-    if (['png','jpg','jpeg','gif','svg','webp'].includes(ext)) return '\\uD83D\\uDDBC\\uFE0F';
-    if (['sh','bash','zsh'].includes(ext)) return '\\uD83D\\uDCBB';
-    if (['py','rb','go','rs','java'].includes(ext)) return '\\uD83D\\uDD27';
-    if (['txt','log'].includes(ext)) return '\\uD83D\\uDCDD';
-    return '\\uD83D\\uDCC4';
-  }
-
-  function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-  function highlightCode(s) {
-    return escapeHtml(s)
-      .replace(/\\b(const|let|var|function|return|import|export|if|else|for|while|class|async|await|new|throw|try|catch|typeof|interface|type|enum|extends|implements|private|public|static|abstract|package|module)\\b/g,'<span class="hl-kw">$1</span>')
-      .replace(/("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*')/g,'<span class="hl-str">$1</span>')
-      .replace(/\\b(\\d+\\.?\\d*)\\b/g,'<span class="hl-num">$1</span>')
-      .replace(/\\/\\/[^\\n]*/g,'<span class="hl-com">$&</span>');
-  }
-
-  function highlightMD(s) {
-    return escapeHtml(s)
-      .replace(/^#{1,6}\\s+.+$/gm,'<span class="hl-section">$&</span>')
-      .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g,'<span class="hl-link">[$1]($2)</span>')
-      .replace(/\`\`\`[\\s\\S]*?\`\`\`/g,function(m){return '<span class="hl-com">'+m+'</span>';})
-      .replace(/\`[^\`]+\`/g,'<span class="hl-str">$&</span>');
-  }
-
-  function renderViewer(filePath) {
-    viewerEl.innerHTML = '<div class="tree-loading">Loading...</div>';
-    readFile(filePath, function(err, data) {
-      if (err || !data) { viewerEl.innerHTML = '<div class="viewer-empty">Failed to load</div>'; return; }
-      var ext = filePath.split('.').pop().toLowerCase();
-      var hl = (['md','markdown'].includes(ext)) ? highlightMD(data.content) : highlightCode(data.content);
-      var sizeStr = data.size < 1024 ? data.size + ' B' : (data.size / 1024).toFixed(1) + ' KB';
-      var h = '<div class="viewer-header"><span class="file-path">' + fileIcon(filePath) + ' ' + escapeHtml(filePath) + '</span><span class="file-size">' + sizeStr + '</span></div>';
-      h += '<div class="viewer-content"><pre><code>' + hl + '</code></pre></div>';
-      viewerEl.innerHTML = h;
-    });
-  }
-
-  function renderTree(relPath, parentEl) {
-    parentEl.innerHTML = '<div class="tree-loading">Loading...</div>';
-    listDir(relPath, function(err, entries) {
-      if (err) { parentEl.innerHTML = ''; return; }
-      parentEl.innerHTML = '';
-      var depth = relPath ? relPath.split('/').length : 0;
-      for (var i = 0; i < entries.length; i++) {
-        var e = entries[i];
-        var isDir = e.type === 'directory';
-        var isExp = expanded[e.path] === true;
-        (function(entry, dir, exp) {
-          var node = document.createElement('div');
-          node.className = 'tree-node';
-          if (selectedPath === entry.path) node.classList.add('selected');
-          node.style.paddingLeft = (12 + depth * 16) + 'px';
-          var arrow = document.createElement('span');
-          arrow.className = 'arrow' + (dir ? '' : ' empty');
-          if (dir) arrow.textContent = exp ? '\\u25BC' : '\\u25B6';
-          node.appendChild(arrow);
-          var icon = document.createElement('span');
-          icon.className = 'icon';
-          icon.textContent = dir ? '\\uD83D\\uDCC1' : fileIcon(entry.name);
-          node.appendChild(icon);
-          var label = document.createElement('span');
-          label.className = 'label';
-          label.textContent = entry.name;
-          node.appendChild(label);
-          parentEl.appendChild(node);
-
-          if (dir) {
-            var ch = document.createElement('div');
-            ch.className = 'tree-children' + (exp ? ' open' : '');
-            parentEl.appendChild(ch);
-            if (exp) renderTree(entry.path, ch);
-            node.addEventListener('click', function(ev) {
-              ev.stopPropagation();
-              selectedPath = entry.path;
-              document.querySelectorAll('.tree-node.selected').forEach(function(n){n.classList.remove('selected')});
-              node.classList.add('selected');
-              if (expanded[entry.path]) {
-                expanded[entry.path] = false;
-                ch.classList.remove('open');
-                arrow.textContent = '\\u25B6';
-              } else {
-                expanded[entry.path] = true;
-                ch.classList.add('open');
-                arrow.textContent = '\\u25BC';
-                if (ch.children.length === 0 || (ch.children.length === 1 && ch.children[0].className === 'tree-loading')) {
-                  renderTree(entry.path, ch);
-                }
-              }
-            });
-          } else {
-            node.addEventListener('click', function(ev) {
-              ev.stopPropagation();
-              selectedPath = entry.path;
-              document.querySelectorAll('.tree-node.selected').forEach(function(n){n.classList.remove('selected')});
-              node.classList.add('selected');
-              renderViewer(entry.path);
-            });
-          }
-        })(e, isDir, isExp);
-      }
-    });
-  }
-
-  renderTree('', treeEl);
-})();
-</script>
-
-<hr>
-<footer style="color:#555;font-size:.85em;margin-top:3em">
-GlyphWeave — Tilemap editor and renderer.
-Source: <a href="https://github.com/HsiangNianian/GlyphWeave">github.com/HsiangNianian/GlyphWeave</a>
 </footer>
 
 </body></html>`

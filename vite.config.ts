@@ -2,52 +2,22 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path, { resolve } from 'path'
-import fs, { readdirSync, readFileSync, statSync } from 'fs'
 import { renderMap } from './server/map-render.mjs'
 import { apiDocPage } from './server/api-doc.mjs'
 
 /**
- * Vite plugin: serves the agents directory browser + map doc at /api.
- * JSON endpoints at /api/agents/list and /api/agents/read for ~/.agents/.
+ * Vite plugin: serves the render API + doc page.
  */
-function agentsBrowserPlugin(): Plugin {
-  const AGENTS_DIR = resolve(process.env.HOME || '/home/hsiangnianian', '.agents')
-
-  function listEntries(relPath: string) {
-    const abs = resolve(AGENTS_DIR, relPath)
-    if (!abs.startsWith(AGENTS_DIR)) return []
-    try {
-      return readdirSync(abs, { withFileTypes: true })
-        .filter(d => d.name !== '.git')
-        .map(d => ({ name: d.name, type: d.isDirectory() ? 'directory' as const : 'file' as const, path: relPath ? relPath + '/' + d.name : d.name }))
-        .sort((a, b) => a.type !== b.type ? (a.type === 'directory' ? -1 : 1) : a.name.localeCompare(b.name))
-    } catch { return [] }
-  }
-
-  function readFileContent(relPath: string) {
-    const abs = resolve(AGENTS_DIR, relPath)
-    if (!abs.startsWith(AGENTS_DIR)) return null
-    try {
-      const s = statSync(abs)
-      if (!s.isFile() || s.size > 524288) return null
-      const buf = readFileSync(abs)
-      if (buf.includes(0)) return null
-      return { content: buf.toString('utf-8'), size: s.size }
-    } catch { return null }
-  }
- 
-
+function apiPlugin(): Plugin {
   return {
-    name: 'agents-browser',
+    name: 'glyphweave-api',
     configureServer(server) {
-      // ── Health check ──
       server.middlewares.use('/api/health', (_req, res) => {
         res.setHeader('Content-Type', 'application/json')
         res.setHeader('Access-Control-Allow-Origin', '*')
         res.end(JSON.stringify({ ok: true, version: 1 }))
       })
 
-      // ── Render API (POST + GET) ──
       server.middlewares.use('/api/render', async (req, res) => {
         res.setHeader('Access-Control-Allow-Origin', '*')
         try {
@@ -87,31 +57,6 @@ function agentsBrowserPlugin(): Plugin {
         }
       })
 
-      // ── Agents directory listing ──
-      server.middlewares.use('/api/agents/list', (req, res, _next) => {
-        const url = new URL(req.url || '/', 'http://' + (req.headers.host || 'localhost'))
-        const relPath = url.searchParams.get('path') || ''
-        res.setHeader('Content-Type', 'application/json')
-        res.setHeader('Access-Control-Allow-Origin', '*')
-        res.end(JSON.stringify({ entries: listEntries(relPath) }))
-      })
-
-      // ── Agents file reader ──
-      server.middlewares.use('/api/agents/read', (req, res, _next) => {
-        const url = new URL(req.url || '/', 'http://' + (req.headers.host || 'localhost'))
-        const relPath = url.searchParams.get('path') || ''
-        const result = readFileContent(relPath)
-        res.setHeader('Content-Type', 'application/json')
-        res.setHeader('Access-Control-Allow-Origin', '*')
-        if (result) {
-          res.end(JSON.stringify(result))
-        } else {
-          res.statusCode = 404
-          res.end(JSON.stringify({ error: 'File not found or binary' }))
-        }
-      })
-
-      // ── Main /api page (doc + tree browser) ──
       server.middlewares.use('/api', (req, res, next) => {
         const pathname = req.url || '/'
         if (pathname === '/' || pathname === '') {
@@ -126,10 +71,6 @@ function agentsBrowserPlugin(): Plugin {
     },
 
     writeBundle() {
-      const outDir = path.resolve(__dirname, 'dist')
-      const wasmSrc = path.resolve(__dirname, 'node_modules/@resvg/resvg-wasm/index_bg.wasm')
-      const wasmDst = path.join(outDir, 'resvg-wasm.wasm')
-      if (fs.existsSync(wasmSrc)) fs.copyFileSync(wasmSrc, wasmDst)
     },
   }
 }
@@ -138,7 +79,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
   },
-  plugins: [react(), tailwindcss(), agentsBrowserPlugin()],
+  plugins: [react(), tailwindcss(), apiPlugin()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

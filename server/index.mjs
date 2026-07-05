@@ -10,19 +10,12 @@ import { apiDocPage } from './api-doc.mjs'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = parseInt(process.argv[2], 10) || 3001
 const DIST_DIR = path.resolve(__dirname, '../dist')
-const AGENTS_DIR = path.resolve(process.env.HOME || '/home/hsiangnianian', '.agents')
 
 const MIME_MAP = {
   '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
   '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2',
   '.woff': 'font/woff', '.ttf': 'font/ttf',
-}
-
-function safeAgentPath(relPath) {
-  const resolved = path.resolve(AGENTS_DIR, relPath || '')
-  if (!resolved.startsWith(AGENTS_DIR)) return null
-  return resolved
 }
 
 function sendJSON(res, status, data) {
