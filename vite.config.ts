@@ -778,6 +778,10 @@ Source: <a href="https://github.com/HsiangNianian/GlyphWeave">github.com/HsiangN
       const baseUrl = 'http://localhost:3001'
       fs.mkdirSync(apiDir, { recursive: true })
       fs.writeFileSync(path.join(apiDir, 'index.html'), agentsInfoPage(baseUrl || 'http://localhost:3001'))
+      // Copy resvg wasm for Worker runtime (too large for git)
+      const wasmSrc = path.resolve(__dirname, 'node_modules/@resvg/resvg-wasm/index_bg.wasm')
+      const wasmDst = path.join(outDir, 'resvg-wasm.wasm')
+      if (fs.existsSync(wasmSrc)) fs.copyFileSync(wasmSrc, wasmDst)
       console.log('[Agents] Generated api/index.html (baseUrl=' + baseUrl + ')')
     },
   }
