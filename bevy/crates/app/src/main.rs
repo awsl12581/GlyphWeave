@@ -1,4 +1,6 @@
+mod camera;
 mod render;
+mod render_sync;
 mod resource;
 
 use bevy::asset::AssetPlugin;
@@ -46,7 +48,7 @@ fn main() {
         .add_systems(
             Startup,
             (
-                spawn_camera,
+                camera::spawn_camera,
                 render::atlas::load_atlas,
                 load_initial_world,
                 render::tilemap::spawn_tilemaps,
@@ -54,11 +56,13 @@ fn main() {
                 .chain(),
         )
         .add_systems(EguiPrimaryContextPass, fps_overlay)
+        .add_systems(Update, render_sync::sync_edits)
+        .add_systems(
+            Update,
+            (camera::pan_camera, camera::zoom_to_cursor)
+                .run_if(not(bevy_egui::input::egui_wants_any_pointer_input)),
+        )
         .run();
-}
-
-fn spawn_camera(mut commands: Commands) {
-    commands.spawn(Camera2d);
 }
 
 fn load_initial_world(mut commands: Commands) {
