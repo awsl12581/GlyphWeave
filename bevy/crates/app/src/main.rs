@@ -1,13 +1,16 @@
 mod camera;
+mod input;
 mod render;
 mod render_sync;
 mod resource;
+mod tool;
+mod ui;
 
 use bevy::asset::AssetPlugin;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::TilemapPlugin;
-use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiPrimaryContextPass};
+use bevy_egui::{EguiPlugin, EguiPrimaryContextPass};
 use glyphweave_core::gemap::load_world;
 use glyphweave_core::tile::TileKind;
 use resource::{CursorTile, EditEvent, WorldModel};
@@ -44,6 +47,7 @@ fn main() {
         .init_resource::<CursorTile>()
         .insert_resource(ActiveBrush(TileKind::Floor))
         .init_resource::<render::tilemap::TileEntities>()
+        .init_resource::<ui::CurrentMapPath>()
         .register_type::<render::tilemap::TilemapLayer>()
         .add_systems(
             Startup,
@@ -55,8 +59,13 @@ fn main() {
             )
                 .chain(),
         )
-        .add_systems(EguiPrimaryContextPass, fps_overlay)
-        .add_systems(Update, render_sync::sync_edits)
+        .add_systems(EguiPrimaryContextPass, ui::ui_overlay)
+        .add_systems(
+            Update,
+            (input::update_cursor_tile, tool::tool_system, render_sync::sync_edits)
+                .chain()
+                .run_if(not(bevy_egui::input::egui_wants_any_pointer_input)),
+        )
         .add_systems(
             Update,
             (camera::pan_camera, camera::zoom_to_cursor)
@@ -79,6 +88,7 @@ fn load_initial_world(mut commands: Commands) {
                 p.display(),
                 w.layers.len()
             );
+            commands.insert_resource(ui::CurrentMapPath(Some(p.clone())));
             w
         }
         Err(e) => {
@@ -86,24 +96,9 @@ fn load_initial_world(mut commands: Commands) {
                 "[glyphweave] failed to load {}: {e}; starting empty",
                 p.display()
             );
+            commands.insert_resource(ui::CurrentMapPath(Some(p.clone())));
             glyphweave_core::world::World::default()
         }
     };
     commands.insert_resource(WorldModel(world));
-}
-
-fn fps_overlay(
-    mut contexts: EguiContexts,
-    diagnostics: Res<bevy::diagnostic::DiagnosticsStore>,
-) {
-    let fps = diagnostics
-        .get(&FrameTimeDiagnosticsPlugin::FPS)
-        .and_then(|d| d.smoothed())
-        .map(|v| format!("{v:.1}"))
-        .unwrap_or_else(|| "—".into());
-    if let Ok(ctx) = contexts.ctx_mut() {
-        egui::TopBottomPanel::top("fps").show(ctx, |ui| {
-            ui.label(format!("FPS: {fps}"));
-        });
-    }
 }
