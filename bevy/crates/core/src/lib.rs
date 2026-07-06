@@ -2,4 +2,5 @@
 pub mod chunk;
 pub mod coords;
 pub mod error;
+pub mod layer;
 pub mod tile;
