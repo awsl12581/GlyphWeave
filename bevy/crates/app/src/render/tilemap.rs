@@ -2,7 +2,7 @@
 //! entity for EVERY cell in the union bounds (so any editable coord has an entity).
 use crate::render::atlas::{tile_index, TileAtlas};
 use crate::render::MapBounds;
-use crate::resource::WorldModel;
+use crate::resource::{ActiveTheme, WorldModel};
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
 use glyphweave_core::world::World;
@@ -70,6 +70,7 @@ pub fn spawn_tilemaps(
     mut commands: Commands,
     world_model: Res<WorldModel>,
     atlas: Res<TileAtlas>,
+    active_theme: Res<ActiveTheme>,
     mut tile_entities: ResMut<TileEntities>,
 ) {
     let world = &world_model.0;
@@ -134,13 +135,50 @@ pub fn spawn_tilemaps(
                 size: map_size,
                 spacing: TilemapSpacing::default(),
                 storage: tile_storage,
-                texture: TilemapTexture::Single(atlas.image.clone()),
+                texture: TilemapTexture::Single(atlas.handle_for(&active_theme.0)),
                 tile_size,
                 transform: Transform::from_xyz(origin_world_x, origin_world_y, z),
                 anchor: TilemapAnchor::TopLeft,
                 ..default()
             },
         ));
+    }
+}
+
+/// Swap every tilemap's texture to the atlas for `ActiveTheme` when it changes.
+/// Runs every Update; cheap no-op when the theme hasn't changed (Local memo).
+pub fn set_theme(
+    active: Res<ActiveTheme>,
+    atlas: Res<TileAtlas>,
+    mut tilemaps: Query<&mut TilemapTexture, With<TilemapLayer>>,
+    mut last: Local<String>,
+) {
+    if *last == active.0 {
+        return;
+    }
+    let handle = atlas.handle_for(&active.0);
+    for mut tex in tilemaps.iter_mut() {
+        *tex = TilemapTexture::Single(handle.clone());
+    }
+    *last = active.0.clone();
+}
+
+/// Mirror `World.layers[i].visible` onto each tilemap's Visibility component.
+pub fn sync_layer_visibility(
+    world_model: Res<WorldModel>,
+    mut tilemaps: Query<(&TilemapLayer, &mut Visibility)>,
+) {
+    for (tm_layer, mut vis) in tilemaps.iter_mut() {
+        let on = world_model
+            .layers
+            .get(tm_layer.index)
+            .map(|l| l.visible)
+            .unwrap_or(true);
+        *vis = if on {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
     }
 }
 

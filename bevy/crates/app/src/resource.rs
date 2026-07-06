@@ -36,3 +36,7 @@ pub struct CursorTile {
     pub y: i32,
     pub valid: bool,
 }
+
+/// Currently active theme id ("ansi-16" or "cogmind"). Drives atlas texture choice.
+#[derive(Resource, Debug, Clone, Default)]
+pub struct ActiveTheme(pub String);

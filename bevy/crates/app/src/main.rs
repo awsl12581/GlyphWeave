@@ -13,7 +13,7 @@ use bevy_ecs_tilemap::prelude::TilemapPlugin;
 use bevy_egui::{EguiPlugin, EguiPrimaryContextPass};
 use glyphweave_core::gemap::load_world;
 use glyphweave_core::tile::TileKind;
-use resource::{CursorTile, EditEvent, WorldModel};
+use resource::{ActiveTheme, CursorTile, EditEvent, WorldModel};
 use std::path::PathBuf;
 
 /// Which kind the Brush tool paints. B = Floor, E = Void (erase semantics).
@@ -46,6 +46,7 @@ fn main() {
         .add_message::<EditEvent>()
         .init_resource::<CursorTile>()
         .insert_resource(ActiveBrush(TileKind::Floor))
+        .insert_resource(ActiveTheme("ansi-16".into()))
         .init_resource::<render::tilemap::TileEntities>()
         .init_resource::<ui::CurrentMapPath>()
         .register_type::<render::tilemap::TilemapLayer>()
@@ -71,6 +72,8 @@ fn main() {
             (camera::pan_camera, camera::zoom_to_cursor)
                 .run_if(not(bevy_egui::input::egui_wants_any_pointer_input)),
         )
+        .add_systems(Update, render::tilemap::set_theme)
+        .add_systems(Update, render::tilemap::sync_layer_visibility)
         .run();
 }
 
