@@ -671,7 +671,7 @@ fn demo_map_path() -> PathBuf {
     path.pop();
     path.pop();
     path.push("examples");
-    path.push("grand-realm-of-aethra.gemap");
+    path.push("aethra-mega.gemap");
     path
 }
 

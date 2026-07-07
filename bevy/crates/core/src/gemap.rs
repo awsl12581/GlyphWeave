@@ -268,27 +268,27 @@ mod tests {
         let mut p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         p.pop(); p.pop(); p.pop();
         p.push("examples");
-        p.push("grand-realm-of-aethra.gemap");
+        p.push("aethra-mega.gemap");
         p
     }
 
     #[test]
-    fn integration_loads_real_aethra_map() {
+    fn integration_loads_real_large_map() {
         let path = example_path();
         assert!(path.exists(), "missing example map at {}", path.display());
         let world = load_world(&path).expect("load real gemap");
-        assert_eq!(world.world_name, "Grand Realm of Aethra");
+        assert!(world.world_name.contains("South China Sea Archipelago"));
         assert_eq!(world.tile_size, 24);
         assert_eq!(world.layers.len(), 3, "real map has 3 layers (Terrain/Structures/Details)");
         assert!(!world.active_grid().unwrap().is_empty(), "active layer should have tiles");
     }
 
     #[test]
-    fn integration_round_trip_real_aethra_map() {
+    fn integration_round_trip_real_large_map() {
         let path = example_path();
         assert!(path.exists(), "missing example map at {}", path.display());
         let world = load_world(&path).expect("load");
-        let tmp = std::env::temp_dir().join("glyphweave_aethra_roundtrip.gemap");
+        let tmp = std::env::temp_dir().join("glyphweave_large_map_roundtrip.gemap");
         save_world(&world, &tmp).expect("save");
         let world2 = load_world(&tmp).expect("reload");
         let _ = std::fs::remove_file(&tmp);

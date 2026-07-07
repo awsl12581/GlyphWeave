@@ -22,7 +22,7 @@
  *   # Large map via POST (pipe .gemap file)
  *   curl -X POST http://localhost:3001/api/render \
  *     -H "Content-Type: application/json" \
- *     -d @grand-realm-of-aethra.gemap > map.png
+ *     -d @examples/aethra-mega.gemap > map.png
  */
 
 import http from 'http'
