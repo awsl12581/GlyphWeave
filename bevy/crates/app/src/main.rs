@@ -1,4 +1,5 @@
 mod camera;
+mod gameplay;
 mod input;
 mod perf;
 mod preset;
@@ -69,6 +70,10 @@ fn main() {
     .init_resource::<EditorViewSettings>()
     .init_resource::<WorldRevision>()
     .init_resource::<perf::PerfCheckState>()
+    .init_resource::<gameplay::GameMode>()
+    .init_resource::<gameplay::ActiveGameOrder>()
+    .init_resource::<gameplay::GameplayTickTimer>()
+    .init_resource::<gameplay::GameplayVisualEntities>()
     .insert_resource(ActiveBrush(TileKind::Wall))
     .insert_resource(ActiveTheme("ansi-16".into()))
     .insert_resource(startup_options)
@@ -85,6 +90,7 @@ fn main() {
             camera::spawn_camera,
             render::atlas::load_atlas,
             load_initial_world,
+            gameplay::init_gameplay_state,
             camera::center_camera_on_world,
             render::tilemap::spawn_tilemaps,
         )
@@ -108,8 +114,12 @@ fn main() {
                 Update,
                 (
                     input::update_cursor_tile,
-                    tool::tool_system,
+                    gameplay::gameplay_hotkeys,
+                    tool::tool_system.run_if(gameplay::is_edit_mode),
+                    gameplay::gameplay_order_input.run_if(gameplay::is_play_mode),
+                    gameplay::tick_gameplay_system.run_if(gameplay::is_play_mode),
                     render_sync::sync_edits,
+                    gameplay::sync_gameplay_entities,
                 )
                     .chain()
                     .run_if(not(bevy_egui::input::egui_wants_any_input)),
@@ -121,7 +131,12 @@ fn main() {
             )
             .add_systems(
                 Update,
-                (render::tilemap::draw_grid, render::tilemap::draw_fog_of_war).chain(),
+                (
+                    render::tilemap::draw_grid,
+                    render::tilemap::draw_fog_of_war,
+                    gameplay::draw_gameplay_overlays,
+                )
+                    .chain(),
             );
     } else {
         app.add_systems(Update, render::tilemap::draw_grid);

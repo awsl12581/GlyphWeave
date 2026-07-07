@@ -14,6 +14,7 @@ pub use command::{
 };
 pub use sim::{
     SimulationConfig, TickResult, build_cost, is_choppable, is_mineable, is_passable,
+    rendered_tile_at,
     resource_from_chop, resource_from_mine, tick_gameplay,
 };
 pub use state::{

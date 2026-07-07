@@ -1,5 +1,6 @@
 //! 2D camera with wheel zoom-to-cursor and middle/right-drag pan.
 //! Pan/zoom are suppressed while egui wants pointer input.
+use crate::gameplay::GameMode;
 use crate::render::tilemap::compute_bounds;
 use crate::resource::EditorTool;
 use crate::resource::WorldModel;
@@ -75,11 +76,12 @@ pub fn pan_camera(
     buttons: Res<ButtonInput<MouseButton>>,
     window: Single<&Window>,
     tool: Res<EditorTool>,
+    mode: Res<GameMode>,
     mut state: Local<PanState>,
 ) {
     let dragging = buttons.pressed(MouseButton::Middle)
         || buttons.pressed(MouseButton::Right)
-        || (*tool == EditorTool::Pan && buttons.pressed(MouseButton::Left));
+        || (*mode == GameMode::Edit && *tool == EditorTool::Pan && buttons.pressed(MouseButton::Left));
     let Some(p) = window.cursor_position() else {
         state.last_cursor = None;
         return;

@@ -2,6 +2,10 @@
 //! narrow tool rail, central canvas, right tabbed inspector, and small
 //! floating status controls.
 use crate::ActiveBrush;
+use crate::gameplay::{
+    ActiveGameOrder, GameMode, GameplayModel, command_for_order, dispatch_text_command,
+    reset_gameplay_for_world,
+};
 use crate::preset::{PRESETS, PresetCategory};
 use crate::render::MapBounds;
 use crate::render::tilemap::RenderRefresh;
@@ -15,6 +19,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
 use glyphweave_core::gemap::{load_world, save_world};
+use glyphweave_core::gameplay::{BuildKind, GameCommand, ResourceKind, TileCoord};
 use glyphweave_core::layer::Layer;
 use glyphweave_core::tile::TileKind;
 use glyphweave_core::world::World;
@@ -27,6 +32,7 @@ pub struct CurrentMapPath(pub Option<PathBuf>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SideTab {
+    Play,
     Tiles,
     Presets,
     Layers,
@@ -51,6 +57,7 @@ pub struct EditorUiState {
     home_tile_size: u32,
     home_theme_id: String,
     home_import_path: String,
+    command_text: String,
     minimap_cache: MinimapCache,
     style_applied: bool,
 }
@@ -74,6 +81,25 @@ pub struct UiWorldParams<'w> {
     world_revision: ResMut<'w, WorldRevision>,
 }
 
+#[derive(SystemParam)]
+pub struct UiEditorParams<'w> {
+    path: ResMut<'w, CurrentMapPath>,
+    active_brush: ResMut<'w, ActiveBrush>,
+    active_theme: ResMut<'w, ActiveTheme>,
+    active_preset: ResMut<'w, ActivePreset>,
+    tool: ResMut<'w, EditorTool>,
+    history: ResMut<'w, EditorHistory>,
+    view_settings: ResMut<'w, EditorViewSettings>,
+    refresh: ResMut<'w, RenderRefresh>,
+}
+
+#[derive(SystemParam)]
+pub struct UiGameplayParams<'w> {
+    game_mode: ResMut<'w, GameMode>,
+    active_order: ResMut<'w, ActiveGameOrder>,
+    gameplay_model: ResMut<'w, GameplayModel>,
+}
+
 impl Default for EditorUiState {
     fn default() -> Self {
         Self {
@@ -87,6 +113,7 @@ impl Default for EditorUiState {
             home_tile_size: 24,
             home_theme_id: "ansi-16".into(),
             home_import_path: String::new(),
+            command_text: String::new(),
             minimap_cache: MinimapCache::default(),
             style_applied: false,
         }
@@ -102,16 +129,21 @@ pub fn ui_overlay(
     bounds: Option<Res<MapBounds>>,
     camera: Single<(&Projection, &mut Transform), With<Camera2d>>,
     window: Single<&Window>,
-    mut path: ResMut<CurrentMapPath>,
-    mut active_brush: ResMut<ActiveBrush>,
-    mut active_theme: ResMut<ActiveTheme>,
-    mut active_preset: ResMut<ActivePreset>,
-    mut tool: ResMut<EditorTool>,
-    mut history: ResMut<EditorHistory>,
-    mut view_settings: ResMut<EditorViewSettings>,
-    mut refresh: ResMut<RenderRefresh>,
+    editor: UiEditorParams,
+    mut gameplay: UiGameplayParams,
     mut ui_state: Local<EditorUiState>,
 ) {
+    let UiEditorParams {
+        mut path,
+        mut active_brush,
+        mut active_theme,
+        mut active_preset,
+        mut tool,
+        mut history,
+        mut view_settings,
+        mut refresh,
+    } = editor;
+
     let fps = diagnostics
         .get(&bevy::diagnostic::FrameTimeDiagnosticsPlugin::FPS)
         .and_then(|d| d.smoothed())
@@ -146,6 +178,7 @@ pub fn ui_overlay(
             &mut refresh,
             &mut path,
             &mut world.world_revision,
+            &mut gameplay.gameplay_model,
         );
         return;
     }
@@ -219,6 +252,15 @@ pub fn ui_overlay(
                 ui.add_space(4.0);
 
                 match ui_state.side_tab {
+                    SideTab::Play => play_tab(
+                        ui,
+                        &mut ui_state,
+                        &mut gameplay.game_mode,
+                        &mut gameplay.active_order,
+                        &mut gameplay.gameplay_model,
+                        &world.world_model,
+                        &cursor,
+                    ),
                     SideTab::Tiles => {
                         tiles_tab(ui, &mut active_brush, &mut active_preset, &mut tool)
                     }
@@ -241,6 +283,7 @@ pub fn ui_overlay(
                         &mut history,
                         &mut refresh,
                         &mut world.world_revision,
+                        &mut gameplay.gameplay_model,
                     ),
                     SideTab::Settings => settings_tab(
                         ui,
@@ -268,6 +311,21 @@ pub fn ui_overlay(
                         ui_state.screen = EditorScreen::Home;
                     }
                     ui.separator();
+                    let mode_label = match *gameplay.game_mode {
+                        GameMode::Edit => "Edit",
+                        GameMode::Play => "Play",
+                    };
+                    if ui
+                        .add(
+                            egui::Button::new(egui::RichText::new(mode_label).size(11.0))
+                                .selected(*gameplay.game_mode == GameMode::Play)
+                                .corner_radius(4),
+                        )
+                        .clicked()
+                    {
+                        gameplay.game_mode.toggle();
+                    }
+                    ui.separator();
                     ui.label(egui::RichText::new(&world.world_model.world_name).strong());
                     ui.separator();
                     ui.label(format!("FPS {fps}"));
@@ -285,6 +343,18 @@ pub fn ui_overlay(
                     }
                     ui.separator();
                     ui.label(format!("{:?}", *tool).to_lowercase());
+                    ui.separator();
+                    if *gameplay.game_mode == GameMode::Play {
+                        ui.label(gameplay.active_order.label());
+                        ui.separator();
+                        ui.label(format!(
+                            "jobs {} idle {}",
+                            gameplay.gameplay_model.open_job_count(),
+                            gameplay.gameplay_model.idle_worker_count()
+                        ));
+                    } else {
+                        ui.label("editor");
+                    }
                     ui.separator();
                     if let Some(index) = active_preset.0 {
                         if let Some(preset) = PRESETS.get(index) {
@@ -470,6 +540,7 @@ fn home_screen(
     refresh: &mut ResMut<RenderRefresh>,
     path: &mut ResMut<CurrentMapPath>,
     world_revision: &mut ResMut<WorldRevision>,
+    gameplay_model: &mut ResMut<GameplayModel>,
 ) {
     egui::CentralPanel::default()
         .frame(egui::Frame::new().fill(egui::Color32::BLACK))
@@ -580,6 +651,7 @@ fn home_screen(
                                 refresh,
                                 path,
                                 world_revision,
+                                gameplay_model,
                                 world,
                                 None,
                             );
@@ -611,6 +683,7 @@ fn home_screen(
                                             refresh,
                                             path,
                                             world_revision,
+                                            gameplay_model,
                                             world,
                                             Some(demo_path.clone()),
                                         );
@@ -644,6 +717,7 @@ fn home_screen(
                                                 refresh,
                                                 path,
                                                 world_revision,
+                                                gameplay_model,
                                                 world,
                                                 Some(import_path.clone()),
                                             );
@@ -723,10 +797,12 @@ fn enter_editor(
     refresh: &mut ResMut<RenderRefresh>,
     path: &mut ResMut<CurrentMapPath>,
     world_revision: &mut ResMut<WorldRevision>,
+    gameplay_model: &mut ResMut<GameplayModel>,
     world: World,
     current_path: Option<PathBuf>,
 ) {
     let theme_id = world.theme_id.clone();
+    reset_gameplay_for_world(gameplay_model, &world);
     world_model.0 = world;
     active_theme.0 = theme_id;
     active_brush.0 = TileKind::Wall;
@@ -768,6 +844,7 @@ fn bump_world_revision(world_revision: &mut ResMut<WorldRevision>) {
 
 fn side_tabs(ui: &mut egui::Ui, active: &mut SideTab) {
     ui.horizontal_wrapped(|ui| {
+        tab_button(ui, active, SideTab::Play, "Play");
         tab_button(ui, active, SideTab::Tiles, "Tiles");
         tab_button(ui, active, SideTab::Presets, "Presets");
         tab_button(ui, active, SideTab::Layers, "Layers");
@@ -787,6 +864,161 @@ fn tab_button(ui: &mut egui::Ui, active: &mut SideTab, tab: SideTab, label: &'st
         .clicked()
     {
         *active = tab;
+    }
+}
+
+fn play_tab(
+    ui: &mut egui::Ui,
+    ui_state: &mut EditorUiState,
+    game_mode: &mut ResMut<GameMode>,
+    active_order: &mut ResMut<ActiveGameOrder>,
+    gameplay_model: &mut ResMut<GameplayModel>,
+    world_model: &WorldModel,
+    cursor: &CursorTile,
+) {
+    ui.heading("Play");
+    ui.add_space(6.0);
+
+    ui.horizontal(|ui| {
+        if ui
+            .add(egui::Button::new("Edit").selected(**game_mode == GameMode::Edit))
+            .clicked()
+        {
+            **game_mode = GameMode::Edit;
+        }
+        if ui
+            .add(egui::Button::new("Play").selected(**game_mode == GameMode::Play))
+            .clicked()
+        {
+            **game_mode = GameMode::Play;
+        }
+    });
+
+    ui.add_space(8.0);
+    ui.label(egui::RichText::new("Orders").size(11.0).color(zinc(500)));
+    ui.horizontal_wrapped(|ui| {
+        for order in ActiveGameOrder::ALL {
+            if ui
+                .add(
+                    egui::Button::new(egui::RichText::new(order.label()).size(11.0))
+                        .selected(**active_order == order)
+                        .corner_radius(3),
+                )
+                .clicked()
+            {
+                **active_order = order;
+                **game_mode = GameMode::Play;
+            }
+        }
+    });
+
+    ui.add_space(8.0);
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new("Text").size(11.0).color(zinc(500)));
+        let enabled = cursor.valid;
+        let response = ui.add_enabled(
+            enabled,
+            egui::TextEdit::singleline(&mut ui_state.command_text).desired_width(118.0),
+        );
+        let submit = response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+        if ui
+            .add_enabled(enabled, egui::Button::new("Run").corner_radius(3))
+            .clicked()
+            || submit
+        {
+            let focus = TileCoord::new(cursor.x, cursor.y);
+            match dispatch_text_command(
+                &ui_state.command_text,
+                focus,
+                &world_model.0,
+                gameplay_model,
+            ) {
+                Ok(()) => {
+                    gameplay_model.emit("Accepted text command.");
+                    ui_state.command_text.clear();
+                    **game_mode = GameMode::Play;
+                }
+                Err(err) => gameplay_model.emit(format!("Text command rejected: {err}.")),
+            }
+        }
+    });
+
+    ui.add_space(8.0);
+    ui.separator();
+    ui.add_space(6.0);
+    ui.label(egui::RichText::new("Colony").size(11.0).color(zinc(500)));
+    ui.label(format!(
+        "day {} {:02}:{:02} {}",
+        gameplay_model.time.day,
+        gameplay_model.time.minute_of_day / 60,
+        gameplay_model.time.minute_of_day % 60,
+        if gameplay_model.time.is_night() { "night" } else { "day" }
+    ));
+    ui.label(format!(
+        "workers {} idle {}",
+        gameplay_model.workers.len(),
+        gameplay_model.idle_worker_count()
+    ));
+    ui.label(format!(
+        "jobs {} monsters {} piles {}",
+        gameplay_model.open_job_count(),
+        gameplay_model.monsters.len(),
+        gameplay_model.item_piles.len()
+    ));
+
+    ui.add_space(8.0);
+    ui.label(egui::RichText::new("Inventory").size(11.0).color(zinc(500)));
+    inventory_row(ui, &gameplay_model.inventory, ResourceKind::Wood);
+    inventory_row(ui, &gameplay_model.inventory, ResourceKind::Stone);
+    inventory_row(ui, &gameplay_model.inventory, ResourceKind::Food);
+    inventory_row(ui, &gameplay_model.inventory, ResourceKind::Ore);
+
+    ui.add_space(8.0);
+    ui.label(egui::RichText::new("Cursor").size(11.0).color(zinc(500)));
+    if cursor.valid {
+        let focus = TileCoord::new(cursor.x, cursor.y);
+        let preview = command_for_order(**active_order, focus, 0, gameplay_model);
+        ui.label(format!("{}, {} -> {}", cursor.x, cursor.y, command_label(preview.as_ref())));
+    } else {
+        ui.label("outside map");
+    }
+
+    ui.add_space(8.0);
+    ui.label(egui::RichText::new("Events").size(11.0).color(zinc(500)));
+    egui::ScrollArea::vertical().max_height(150.0).show(ui, |ui| {
+        for event in gameplay_model.events.iter().rev().take(12) {
+            ui.label(egui::RichText::new(format!("#{} {}", event.tick, event.message)).size(10.0));
+        }
+    });
+}
+
+fn inventory_row(
+    ui: &mut egui::Ui,
+    inventory: &glyphweave_core::gameplay::Inventory,
+    kind: ResourceKind,
+) {
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(kind.label()).size(11.0));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(egui::RichText::new(inventory.get(kind).to_string()).monospace());
+        });
+    });
+}
+
+fn command_label(command: Option<&GameCommand>) -> &'static str {
+    match command {
+        Some(GameCommand::Mine { .. }) => "mine",
+        Some(GameCommand::Chop { .. }) => "chop",
+        Some(GameCommand::Build { blueprint }) => match blueprint.kind {
+            BuildKind::Wall => "build wall",
+            BuildKind::Floor => "build floor",
+            BuildKind::Door => "build door",
+        },
+        Some(GameCommand::Haul { .. }) => "haul",
+        Some(GameCommand::Explore { .. }) => "explore",
+        Some(GameCommand::SetStockpile { .. }) => "stockpile",
+        Some(GameCommand::Cancel { .. }) => "cancel",
+        None => "inspect",
     }
 }
 
@@ -1005,6 +1237,7 @@ fn export_tab(
     history: &mut ResMut<EditorHistory>,
     refresh: &mut ResMut<RenderRefresh>,
     world_revision: &mut ResMut<WorldRevision>,
+    gameplay_model: &mut ResMut<GameplayModel>,
 ) {
     ui.heading("Export / Import");
     ui.add_space(8.0);
@@ -1045,6 +1278,7 @@ fn export_tab(
                 match load_world(&target) {
                     Ok(world) => {
                         history.push_snapshot(&world_model.0);
+                        reset_gameplay_for_world(gameplay_model, &world);
                         world_model.0 = world;
                         active_theme.0 = world_model.theme_id.clone();
                         path.0 = Some(target);
@@ -1060,7 +1294,9 @@ fn export_tab(
         }
         if ui.button("New Empty").clicked() {
             history.push_snapshot(&world_model.0);
-            world_model.0 = empty_ground_world();
+            let world = empty_ground_world();
+            reset_gameplay_for_world(gameplay_model, &world);
+            world_model.0 = world;
             active_theme.0 = world_model.theme_id.clone();
             path.0 = None;
             bump_world_revision(world_revision);
