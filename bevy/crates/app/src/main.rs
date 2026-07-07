@@ -1,5 +1,6 @@
 mod camera;
 mod input;
+mod preset;
 mod render;
 mod render_sync;
 mod resource;
@@ -11,10 +12,11 @@ use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::TilemapPlugin;
 use bevy_egui::{EguiPlugin, EguiPrimaryContextPass};
-use glyphweave_core::gemap::load_world;
 use glyphweave_core::tile::TileKind;
-use resource::{ActiveTheme, CursorTile, EditEvent, WorldModel};
-use std::path::PathBuf;
+use resource::{
+    ActivePreset, ActiveTheme, CursorTile, EditEvent, EditorHistory, EditorTool,
+    EditorViewSettings, WorldModel,
+};
 
 /// Which kind the Brush tool paints. B = Floor, E = Void (erase semantics).
 #[derive(Resource, Debug, Clone, Copy)]
@@ -45,9 +47,14 @@ fn main() {
         .add_plugins(TilemapPlugin)
         .add_message::<EditEvent>()
         .init_resource::<CursorTile>()
-        .insert_resource(ActiveBrush(TileKind::Floor))
+        .init_resource::<EditorTool>()
+        .init_resource::<ActivePreset>()
+        .init_resource::<EditorHistory>()
+        .init_resource::<EditorViewSettings>()
+        .insert_resource(ActiveBrush(TileKind::Wall))
         .insert_resource(ActiveTheme("ansi-16".into()))
         .init_resource::<render::tilemap::TileEntities>()
+        .init_resource::<render::tilemap::RenderRefresh>()
         .init_resource::<ui::CurrentMapPath>()
         .register_type::<render::tilemap::TilemapLayer>()
         .add_systems(
@@ -63,45 +70,33 @@ fn main() {
         .add_systems(EguiPrimaryContextPass, ui::ui_overlay)
         .add_systems(
             Update,
-            (input::update_cursor_tile, tool::tool_system, render_sync::sync_edits)
+            (
+                input::update_cursor_tile,
+                tool::tool_system,
+                render_sync::sync_edits,
+            )
                 .chain()
-                .run_if(not(bevy_egui::input::egui_wants_any_pointer_input)),
+                .run_if(not(bevy_egui::input::egui_wants_any_input)),
         )
         .add_systems(
             Update,
             (camera::pan_camera, camera::zoom_to_cursor)
                 .run_if(not(bevy_egui::input::egui_wants_any_pointer_input)),
         )
-        .add_systems(Update, render::tilemap::set_theme)
-        .add_systems(Update, render::tilemap::sync_layer_visibility)
+        .add_systems(
+            Update,
+            (
+                render::tilemap::refresh_tilemaps,
+                render::tilemap::set_theme,
+                render::tilemap::sync_layer_visibility,
+                render::tilemap::draw_grid,
+            )
+                .chain(),
+        )
         .run();
 }
 
 fn load_initial_world(mut commands: Commands) {
-    let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    p.pop();
-    p.pop();
-    p.pop(); // repo root
-    p.push("examples");
-    p.push("grand-realm-of-aethra.gemap");
-    let world = match load_world(&p) {
-        Ok(w) => {
-            println!(
-                "[glyphweave] loaded {} ({} layers)",
-                p.display(),
-                w.layers.len()
-            );
-            commands.insert_resource(ui::CurrentMapPath(Some(p.clone())));
-            w
-        }
-        Err(e) => {
-            eprintln!(
-                "[glyphweave] failed to load {}: {e}; starting empty",
-                p.display()
-            );
-            commands.insert_resource(ui::CurrentMapPath(Some(p.clone())));
-            glyphweave_core::world::World::default()
-        }
-    };
-    commands.insert_resource(WorldModel(world));
+    commands.insert_resource(ui::CurrentMapPath(None));
+    commands.insert_resource(WorldModel(glyphweave_core::world::World::default()));
 }

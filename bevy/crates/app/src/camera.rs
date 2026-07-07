@@ -1,5 +1,6 @@
 //! 2D camera with wheel zoom-to-cursor and middle/right-drag pan.
 //! Pan/zoom are suppressed while egui wants pointer input.
+use crate::resource::EditorTool;
 use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
 
@@ -57,9 +58,12 @@ pub fn pan_camera(
     buttons: Res<ButtonInput<MouseButton>>,
     window: Single<&Window>,
     camera: Single<(&Camera, &GlobalTransform)>,
+    tool: Res<EditorTool>,
     mut state: Local<PanState>,
 ) {
-    let dragging = buttons.pressed(MouseButton::Middle) || buttons.pressed(MouseButton::Right);
+    let dragging = buttons.pressed(MouseButton::Middle)
+        || buttons.pressed(MouseButton::Right)
+        || (*tool == EditorTool::Pan && buttons.pressed(MouseButton::Left));
     let (cam, gtf) = *camera;
     let Some(p) = window.cursor_position() else {
         state.last_cursor = None;

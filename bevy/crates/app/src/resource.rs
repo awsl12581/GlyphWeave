@@ -40,3 +40,83 @@ pub struct CursorTile {
 /// Currently active theme id ("ansi-16" or "cogmind"). Drives atlas texture choice.
 #[derive(Resource, Debug, Clone, Default)]
 pub struct ActiveTheme(pub String);
+
+/// Editor tool mode, matching the Vite toolbar.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EditorTool {
+    #[default]
+    Brush,
+    Erase,
+    Fill,
+    Pan,
+    Select,
+}
+
+/// Current preset selection by `crate::preset::PRESETS` index.
+#[derive(Resource, Debug, Clone, Copy, Default)]
+pub struct ActivePreset(pub Option<usize>);
+
+/// View toggles shown in the Settings tab.
+#[derive(Resource, Debug, Clone, Copy)]
+pub struct EditorViewSettings {
+    pub view_distance: u32,
+    pub show_grid: bool,
+    pub show_minimap: bool,
+}
+
+impl Default for EditorViewSettings {
+    fn default() -> Self {
+        Self {
+            view_distance: 5,
+            show_grid: true,
+            show_minimap: true,
+        }
+    }
+}
+
+/// Full-world snapshots for undo/redo. This is intentionally coarse for now:
+/// the Bevy port still uses bounded tilemaps, so whole-world restore plus a
+/// render refresh is simpler and safer than trying to replay structural edits.
+#[derive(Resource, Debug, Default)]
+pub struct EditorHistory {
+    undo_stack: Vec<World>,
+    redo_stack: Vec<World>,
+}
+
+impl EditorHistory {
+    const MAX_HISTORY: usize = 50;
+
+    pub fn push_snapshot(&mut self, world: &World) {
+        self.undo_stack.push(world.clone());
+        if self.undo_stack.len() > Self::MAX_HISTORY {
+            self.undo_stack.remove(0);
+        }
+        self.redo_stack.clear();
+    }
+
+    pub fn undo(&mut self, world: &mut World) -> bool {
+        let Some(previous) = self.undo_stack.pop() else {
+            return false;
+        };
+        self.redo_stack.push(world.clone());
+        *world = previous;
+        true
+    }
+
+    pub fn redo(&mut self, world: &mut World) -> bool {
+        let Some(next) = self.redo_stack.pop() else {
+            return false;
+        };
+        self.undo_stack.push(world.clone());
+        *world = next;
+        true
+    }
+
+    pub fn can_undo(&self) -> bool {
+        !self.undo_stack.is_empty()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        !self.redo_stack.is_empty()
+    }
+}

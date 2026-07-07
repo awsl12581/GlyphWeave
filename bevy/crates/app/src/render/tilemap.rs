@@ -1,8 +1,8 @@
 //! Spawn one bounded TilemapBundle per visible layer, z-stacked, with a tile
 //! entity for EVERY cell in the union bounds (so any editable coord has an entity).
-use crate::render::atlas::{tile_index, TileAtlas};
 use crate::render::MapBounds;
-use crate::resource::{ActiveTheme, WorldModel};
+use crate::render::atlas::{TileAtlas, tile_index};
+use crate::resource::{ActiveTheme, EditorViewSettings, WorldModel};
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
 use glyphweave_core::world::World;
@@ -21,6 +21,10 @@ pub struct TilemapLayer {
 pub struct TileEntities {
     pub map: std::collections::HashMap<(usize, i32, i32), Entity>,
 }
+
+/// Set when structural world changes require a full render rebuild.
+#[derive(Resource, Default, Debug, Clone, Copy)]
+pub struct RenderRefresh(pub bool);
 
 /// Pure: compute union bounds over all layers that have any tiles.
 /// Empty world -> 1x1 degenerate bounds so the tilemap still exists.
@@ -73,7 +77,22 @@ pub fn spawn_tilemaps(
     active_theme: Res<ActiveTheme>,
     mut tile_entities: ResMut<TileEntities>,
 ) {
-    let world = &world_model.0;
+    spawn_tilemaps_for_world(
+        &mut commands,
+        &world_model.0,
+        &atlas,
+        &active_theme,
+        &mut tile_entities,
+    );
+}
+
+fn spawn_tilemaps_for_world(
+    commands: &mut Commands,
+    world: &World,
+    atlas: &TileAtlas,
+    active_theme: &ActiveTheme,
+    tile_entities: &mut TileEntities,
+) {
     let tile_px = world.tile_size.max(1) as f32;
     let bounds = compute_bounds(world);
     commands.insert_resource(bounds);
@@ -82,8 +101,14 @@ pub fn spawn_tilemaps(
         x: bounds.width,
         y: bounds.height,
     };
-    let tile_size = TilemapTileSize { x: tile_px, y: tile_px };
-    let grid_size = TilemapGridSize { x: tile_px, y: tile_px };
+    let tile_size = TilemapTileSize {
+        x: tile_px,
+        y: tile_px,
+    };
+    let grid_size = TilemapGridSize {
+        x: tile_px,
+        y: tile_px,
+    };
     let map_type = TilemapType::default();
 
     // With TopLeft anchor: tile TilePos(0,0) sits at the tilemap's local origin.
@@ -94,9 +119,6 @@ pub fn spawn_tilemaps(
     tile_entities.map.clear();
 
     for (i, layer) in world.layers.iter().enumerate() {
-        if !layer.visible {
-            continue;
-        }
         let tilemap_entity = commands.spawn_empty().id();
         let mut tile_storage = TileStorage::empty(map_size);
         let grid = world.grid(&layer.id);
@@ -139,10 +161,45 @@ pub fn spawn_tilemaps(
                 tile_size,
                 transform: Transform::from_xyz(origin_world_x, origin_world_y, z),
                 anchor: TilemapAnchor::TopLeft,
+                visibility: if layer.visible {
+                    Visibility::Visible
+                } else {
+                    Visibility::Hidden
+                },
                 ..default()
             },
         ));
     }
+}
+
+pub fn refresh_tilemaps(
+    mut commands: Commands,
+    mut refresh: ResMut<RenderRefresh>,
+    world_model: Res<WorldModel>,
+    atlas: Res<TileAtlas>,
+    active_theme: Res<ActiveTheme>,
+    mut tile_entities: ResMut<TileEntities>,
+    mut tilemaps: Query<(Entity, &mut TileStorage), With<TilemapLayer>>,
+) {
+    if !refresh.0 {
+        return;
+    }
+
+    for (entity, mut storage) in tilemaps.iter_mut() {
+        for tile in storage.drain() {
+            commands.entity(tile).despawn();
+        }
+        commands.entity(entity).despawn();
+    }
+
+    spawn_tilemaps_for_world(
+        &mut commands,
+        &world_model.0,
+        &atlas,
+        &active_theme,
+        &mut tile_entities,
+    );
+    refresh.0 = false;
 }
 
 /// Swap every tilemap's texture to the atlas for `ActiveTheme` when it changes.
@@ -182,6 +239,54 @@ pub fn sync_layer_visibility(
     }
 }
 
+pub fn draw_grid(
+    settings: Res<EditorViewSettings>,
+    world_model: Res<WorldModel>,
+    camera: Single<(&Camera, &GlobalTransform)>,
+    window: Single<&Window>,
+    mut gizmos: Gizmos,
+) {
+    if !settings.show_grid {
+        return;
+    }
+    let (camera, camera_transform) = *camera;
+    let Ok(top_left) = camera.viewport_to_world_2d(camera_transform, Vec2::ZERO) else {
+        return;
+    };
+    let Ok(bottom_right) =
+        camera.viewport_to_world_2d(camera_transform, Vec2::new(window.width(), window.height()))
+    else {
+        return;
+    };
+
+    let tile_px = world_model.tile_size.max(1) as f32;
+    let padding = settings.view_distance as i32;
+    let min_world_x = top_left.x.min(bottom_right.x);
+    let max_world_x = top_left.x.max(bottom_right.x);
+    let min_world_y = top_left.y.min(bottom_right.y);
+    let max_world_y = top_left.y.max(bottom_right.y);
+
+    let min_tile_x = (min_world_x / tile_px).floor() as i32 - padding;
+    let max_tile_x = (max_world_x / tile_px).ceil() as i32 + padding;
+    let min_tile_y = (-max_world_y / tile_px).floor() as i32 - padding;
+    let max_tile_y = (-min_world_y / tile_px).ceil() as i32 + padding;
+
+    let min_x = min_tile_x as f32 * tile_px;
+    let max_x = (max_tile_x + 1) as f32 * tile_px;
+    let top_y = -(min_tile_y as f32) * tile_px;
+    let bottom_y = -((max_tile_y + 1) as f32) * tile_px;
+    let color = Color::srgba(0.18, 0.18, 0.2, 0.45);
+
+    for tx in min_tile_x..=max_tile_x + 1 {
+        let x = tx as f32 * tile_px;
+        gizmos.line_2d(Vec2::new(x, top_y), Vec2::new(x, bottom_y), color);
+    }
+    for ty in min_tile_y..=max_tile_y + 1 {
+        let y = -(ty as f32) * tile_px;
+        gizmos.line_2d(Vec2::new(min_x, y), Vec2::new(max_x, y), color);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,7 +296,15 @@ mod tests {
     fn empty_world_degenerate_bounds() {
         let w = World::default();
         let b = compute_bounds(&w);
-        assert_eq!(b, MapBounds { min_x: 0, min_y: 0, width: 1, height: 1 });
+        assert_eq!(
+            b,
+            MapBounds {
+                min_x: 0,
+                min_y: 0,
+                width: 1,
+                height: 1
+            }
+        );
     }
 
     #[test]
