@@ -32,8 +32,17 @@ pub struct TileEntities {
 #[derive(Resource, Default, Debug, Clone, Copy)]
 pub struct RenderRefresh(pub bool);
 
+#[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RenderBoundsMode {
+    #[default]
+    Viewport,
+    World,
+}
+
 const RENDER_PADDING_TILES: i32 = 40;
 const RENDER_REFRESH_MARGIN_TILES: i32 = 8;
+const FULL_WORLD_RENDER_CELL_LIMIT: u64 = 300_000;
+const FULL_WORLD_RENDER_AREA_RATIO: f32 = 0.08;
 
 /// Pure: compute union bounds over all layers that have any tiles.
 /// Empty world -> 1x1 degenerate bounds so the tilemap still exists.
@@ -95,14 +104,15 @@ pub fn spawn_tilemaps(
         &window,
         world_model.tile_size,
     )
-    .map(render_bounds_for_view)
-    .unwrap_or_else(|| compute_bounds(&world_model.0));
+    .map(|view| select_render_bounds(&world_model.0, view))
+    .unwrap_or_else(|| (compute_bounds(&world_model.0), RenderBoundsMode::World));
     spawn_tilemaps_for_world(
         &mut commands,
         &world_model.0,
         &atlas,
         &active_theme,
-        bounds,
+        bounds.0,
+        bounds.1,
         &mut tile_entities,
     );
 }
@@ -113,10 +123,12 @@ fn spawn_tilemaps_for_world(
     atlas: &TileAtlas,
     active_theme: &ActiveTheme,
     bounds: MapBounds,
+    mode: RenderBoundsMode,
     tile_entities: &mut TileEntities,
 ) {
     let tile_px = world.tile_size.max(1) as f32;
     commands.insert_resource(bounds);
+    commands.insert_resource(mode);
 
     let map_size = TilemapSize {
         x: bounds.width,
@@ -263,14 +275,15 @@ pub fn refresh_tilemaps(
         &window,
         world_model.tile_size,
     )
-    .map(render_bounds_for_view)
-    .unwrap_or_else(|| compute_bounds(&world_model.0));
+    .map(|view| select_render_bounds(&world_model.0, view))
+    .unwrap_or_else(|| (compute_bounds(&world_model.0), RenderBoundsMode::World));
     spawn_tilemaps_for_world(
         &mut commands,
         &world_model.0,
         &atlas,
         &active_theme,
-        bounds,
+        bounds.0,
+        bounds.1,
         &mut tile_entities,
     );
     refresh.0 = false;
@@ -281,6 +294,7 @@ pub fn refresh_when_camera_bounds_change(
     camera: Single<(&Transform, &Projection), With<Camera2d>>,
     window: Single<&Window>,
     bounds: Option<Res<MapBounds>>,
+    mode: Option<Res<RenderBoundsMode>>,
     mut refresh: ResMut<RenderRefresh>,
 ) {
     if refresh.0 {
@@ -299,8 +313,18 @@ pub fn refresh_when_camera_bounds_change(
         refresh.0 = true;
         return;
     };
-    if !render_bounds_contains_view(render_bounds, view_bounds) {
-        refresh.0 = true;
+    match mode.as_deref().copied().unwrap_or_default() {
+        RenderBoundsMode::Viewport => {
+            if !render_bounds_contains_view(render_bounds, view_bounds) {
+                refresh.0 = true;
+            }
+        }
+        RenderBoundsMode::World => {
+            let viewport_bounds = render_bounds_for_view(view_bounds);
+            if !should_use_world_bounds(render_bounds, viewport_bounds) {
+                refresh.0 = true;
+            }
+        }
     }
 }
 
@@ -332,6 +356,27 @@ fn render_bounds_for_view(view: MapBounds) -> MapBounds {
         width: view.width + (RENDER_PADDING_TILES * 2) as u32,
         height: view.height + (RENDER_PADDING_TILES * 2) as u32,
     }
+}
+
+fn select_render_bounds(world: &World, view: MapBounds) -> (MapBounds, RenderBoundsMode) {
+    let viewport_bounds = render_bounds_for_view(view);
+    let world_bounds = compute_bounds(world);
+    if should_use_world_bounds(world_bounds, viewport_bounds) {
+        (world_bounds, RenderBoundsMode::World)
+    } else {
+        (viewport_bounds, RenderBoundsMode::Viewport)
+    }
+}
+
+fn should_use_world_bounds(world: MapBounds, viewport: MapBounds) -> bool {
+    let world_area = bounds_area(world);
+    let viewport_area = bounds_area(viewport);
+    world_area <= FULL_WORLD_RENDER_CELL_LIMIT
+        && viewport_area as f32 >= world_area as f32 * FULL_WORLD_RENDER_AREA_RATIO
+}
+
+fn bounds_area(bounds: MapBounds) -> u64 {
+    u64::from(bounds.width) * u64::from(bounds.height)
 }
 
 fn render_bounds_contains_view(render: MapBounds, view: MapBounds) -> bool {
@@ -472,6 +517,78 @@ mod tests {
         assert_eq!(b.min_y, -2);
         assert_eq!(b.width, 5);
         assert_eq!(b.height, 4);
+    }
+
+    #[test]
+    fn small_view_uses_viewport_render_bounds() {
+        let mut w = World::default();
+        let l = w.active_layer.clone();
+        w.set(&l, 0, 0, TileKind::Floor);
+        w.set(&l, 639, 359, TileKind::Wall);
+
+        let (bounds, mode) = select_render_bounds(
+            &w,
+            MapBounds {
+                min_x: 293,
+                min_y: 164,
+                width: 54,
+                height: 32,
+            },
+        );
+
+        assert_eq!(mode, RenderBoundsMode::Viewport);
+        assert_eq!(bounds.width, 134);
+        assert_eq!(bounds.height, 112);
+    }
+
+    #[test]
+    fn large_view_uses_world_render_bounds() {
+        let mut w = World::default();
+        let l = w.active_layer.clone();
+        w.set(&l, 0, 0, TileKind::Floor);
+        w.set(&l, 639, 359, TileKind::Wall);
+
+        let (bounds, mode) = select_render_bounds(
+            &w,
+            MapBounds {
+                min_x: 53,
+                min_y: 29,
+                width: 534,
+                height: 302,
+            },
+        );
+
+        assert_eq!(mode, RenderBoundsMode::World);
+        assert_eq!(
+            bounds,
+            MapBounds {
+                min_x: 0,
+                min_y: 0,
+                width: 640,
+                height: 360
+            }
+        );
+    }
+
+    #[test]
+    fn world_render_bounds_release_when_view_is_small_again() {
+        let world_bounds = MapBounds {
+            min_x: 0,
+            min_y: 0,
+            width: 640,
+            height: 360,
+        };
+        let small_viewport_bounds = render_bounds_for_view(MapBounds {
+            min_x: 293,
+            min_y: 164,
+            width: 54,
+            height: 32,
+        });
+
+        assert!(!should_use_world_bounds(
+            world_bounds,
+            small_viewport_bounds
+        ));
     }
 
     #[test]

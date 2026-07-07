@@ -23,6 +23,8 @@ impl StartupOptions {
         let mut warmup_secs = 3.0;
         let mut sample_secs = 5.0;
         let mut motion = PerfMotion::Static;
+        let mut zoom_percent = None;
+        let mut pan_radius_tiles = 28.0;
         let mut perf_check = false;
 
         let mut args = std::env::args().skip(1);
@@ -56,6 +58,12 @@ impl StartupOptions {
                     };
                     motion = PerfMotion::parse(&raw);
                 }
+                "--perf-zoom-percent" => {
+                    zoom_percent = Some(parse_number(args.next(), "--perf-zoom-percent") as f32);
+                }
+                "--perf-pan-radius-tiles" => {
+                    pan_radius_tiles = parse_number(args.next(), "--perf-pan-radius-tiles") as f32;
+                }
                 "--help" | "-h" => {
                     print_usage_and_exit(0);
                 }
@@ -74,6 +82,8 @@ impl StartupOptions {
                 warmup_secs,
                 sample_secs,
                 motion,
+                zoom_percent,
+                pan_radius_tiles,
                 map_path: options.map_path.clone().unwrap_or_default(),
             });
         }
@@ -88,6 +98,8 @@ pub struct PerfCheckConfig {
     pub warmup_secs: f64,
     pub sample_secs: f64,
     pub motion: PerfMotion,
+    pub zoom_percent: Option<f32>,
+    pub pan_radius_tiles: f32,
     pub map_path: PathBuf,
 }
 
@@ -148,16 +160,23 @@ pub fn perf_motion_system(
     let Some(config) = config else {
         return;
     };
-    if config.motion == PerfMotion::Static {
-        return;
-    }
 
     let (mut camera_transform, mut projection) = camera.into_inner();
+    let configured_scale = config
+        .zoom_percent
+        .map(|percent| 100.0 / percent.max(f32::EPSILON));
     let base_translation = *state
         .base_translation
         .get_or_insert(camera_transform.translation);
     let base_scale = *state.base_scale.get_or_insert_with(|| match *projection {
-        Projection::Orthographic(ref ortho) => ortho.scale,
+        Projection::Orthographic(ref mut ortho) => {
+            if let Some(scale) = configured_scale {
+                ortho.scale = scale;
+                scale
+            } else {
+                ortho.scale
+            }
+        }
         _ => 1.0,
     });
     state.elapsed_secs += time.delta_secs_f64();
@@ -167,8 +186,10 @@ pub fn perf_motion_system(
         PerfMotion::Pan => {
             let tile_px = world_model.tile_size.max(1) as f32;
             let t = state.elapsed_secs as f32;
-            camera_transform.translation.x = base_translation.x + (t * 0.85).sin() * tile_px * 28.0;
-            camera_transform.translation.y = base_translation.y + (t * 0.65).cos() * tile_px * 18.0;
+            camera_transform.translation.x =
+                base_translation.x + (t * 0.85).sin() * tile_px * config.pan_radius_tiles;
+            camera_transform.translation.y =
+                base_translation.y + (t * 0.65).cos() * tile_px * config.pan_radius_tiles * 0.65;
             if let Projection::Orthographic(ref mut ortho) = *projection {
                 ortho.scale = base_scale;
             }
@@ -208,9 +229,15 @@ pub fn perf_check_system(
         state.present_frame_times_secs.clear();
         state.workload_frame_times_secs.clear();
         println!(
-            "[glyphweave:perf] sampling {} motion={} for {:.1}s after {:.1}s warmup",
+            "[glyphweave:perf] sampling {} motion={} zoom_percent={} pan_radius_tiles={:.1} \
+             for {:.1}s after {:.1}s warmup",
             config.map_path.display(),
             config.motion.label(),
+            config
+                .zoom_percent
+                .map(|value| format!("{value:.1}"))
+                .unwrap_or_else(|| "default".into()),
+            config.pan_radius_tiles,
             config.sample_secs,
             config.warmup_secs
         );
@@ -246,13 +273,19 @@ pub fn perf_check_system(
     let pass = workload_fps >= config.threshold_fps && workload_p95_ms <= budget_frame_ms;
 
     println!(
-        "[glyphweave:perf] map={} motion={} workload_fps={workload_fps:.1} \
+        "[glyphweave:perf] map={} motion={} zoom_percent={} pan_radius_tiles={:.1} \
+         workload_fps={workload_fps:.1} \
          workload_p95_ms={workload_p95_ms:.2} workload_max_ms={workload_max_ms:.2} \
          present_fps={present_fps:.1} present_p95_ms={present_p95_ms:.2} \
          present_max_ms={present_max_ms:.2} threshold_fps={:.1} \
          budget_frame_ms={budget_frame_ms:.2}",
         config.map_path.display(),
         config.motion.label(),
+        config
+            .zoom_percent
+            .map(|value| format!("{value:.1}"))
+            .unwrap_or_else(|| "default".into()),
+        config.pan_radius_tiles,
         config.threshold_fps
     );
 
@@ -290,7 +323,8 @@ fn print_usage_and_exit(code: i32) -> ! {
     eprintln!(
         "usage: glyphweave [--map <path>] [--no-vsync] \
          [--perf-check --perf-motion <static|pan|zoom> --perf-threshold <fps> \
-         --perf-warmup <secs> --perf-sample <secs>]"
+         --perf-warmup <secs> --perf-sample <secs> \
+         --perf-zoom-percent <percent> --perf-pan-radius-tiles <tiles>]"
     );
     std::process::exit(code);
 }
