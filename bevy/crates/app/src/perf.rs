@@ -1,6 +1,7 @@
 //! Release-mode FPS budget checks for large example maps.
+use crate::gameplay::{GameplayModel, seed_perf_gameplay_entities};
 use crate::render::tilemap::RenderMetrics;
-use crate::resource::WorldModel;
+use crate::resource::{CursorTile, EditorViewSettings, WorldModel};
 use bevy::prelude::*;
 use std::cmp::Ordering;
 use std::path::PathBuf;
@@ -26,6 +27,8 @@ impl StartupOptions {
         let mut motion = PerfMotion::Static;
         let mut zoom_percent = None;
         let mut pan_radius_tiles = 28.0;
+        let mut fog = false;
+        let mut gameplay_entities = 0;
         let mut perf_check = false;
 
         let mut args = std::env::args().skip(1);
@@ -65,6 +68,12 @@ impl StartupOptions {
                 "--perf-pan-radius-tiles" => {
                     pan_radius_tiles = parse_number(args.next(), "--perf-pan-radius-tiles") as f32;
                 }
+                "--perf-fog" => {
+                    fog = true;
+                }
+                "--perf-gameplay-entities" => {
+                    gameplay_entities = parse_number(args.next(), "--perf-gameplay-entities") as usize;
+                }
                 "--help" | "-h" => {
                     print_usage_and_exit(0);
                 }
@@ -85,6 +94,8 @@ impl StartupOptions {
                 motion,
                 zoom_percent,
                 pan_radius_tiles,
+                fog,
+                gameplay_entities,
                 map_path: options.map_path.clone().unwrap_or_default(),
             });
         }
@@ -101,6 +112,8 @@ pub struct PerfCheckConfig {
     pub motion: PerfMotion,
     pub zoom_percent: Option<f32>,
     pub pan_radius_tiles: f32,
+    pub fog: bool,
+    pub gameplay_entities: usize,
     pub map_path: PathBuf,
 }
 
@@ -145,6 +158,25 @@ pub struct PerfMotionState {
     elapsed_secs: f64,
     base_translation: Option<Vec3>,
     base_scale: Option<f32>,
+}
+
+pub fn configure_perf_scene(
+    config: Option<Res<PerfCheckConfig>>,
+    world_model: Res<WorldModel>,
+    mut view_settings: ResMut<EditorViewSettings>,
+    mut gameplay: ResMut<GameplayModel>,
+) {
+    let Some(config) = config else {
+        return;
+    };
+    if config.fog {
+        view_settings.show_fog_of_war = true;
+        view_settings.fog_radius = 10;
+        view_settings.fog_softness = 4;
+    }
+    if config.gameplay_entities > 0 {
+        seed_perf_gameplay_entities(&mut gameplay, &world_model.0, config.gameplay_entities);
+    }
 }
 
 pub fn perf_frame_start_system(mut state: ResMut<PerfCheckState>) {
@@ -205,6 +237,24 @@ pub fn perf_motion_system(
     }
 }
 
+pub fn perf_cursor_to_camera_system(
+    config: Option<Res<PerfCheckConfig>>,
+    world_model: Res<WorldModel>,
+    camera: Single<&Transform, With<Camera2d>>,
+    mut cursor: ResMut<CursorTile>,
+) {
+    let Some(config) = config else {
+        return;
+    };
+    if !config.fog {
+        return;
+    }
+    let tile_px = world_model.tile_size.max(1) as f32;
+    cursor.x = (camera.translation.x / tile_px).floor() as i32;
+    cursor.y = (-camera.translation.y / tile_px).floor() as i32;
+    cursor.valid = true;
+}
+
 pub fn perf_check_system(
     time: Res<Time>,
     config: Res<PerfCheckConfig>,
@@ -232,7 +282,7 @@ pub fn perf_check_system(
         state.workload_frame_times_secs.clear();
         println!(
             "[glyphweave:perf] sampling {} motion={} zoom_percent={} pan_radius_tiles={:.1} \
-             for {:.1}s after {:.1}s warmup",
+             fog={} gameplay_entities={} for {:.1}s after {:.1}s warmup",
             config.map_path.display(),
             config.motion.label(),
             config
@@ -240,6 +290,8 @@ pub fn perf_check_system(
                 .map(|value| format!("{value:.1}"))
                 .unwrap_or_else(|| "default".into()),
             config.pan_radius_tiles,
+            config.fog,
+            config.gameplay_entities,
             config.sample_secs,
             config.warmup_secs
         );
@@ -276,6 +328,7 @@ pub fn perf_check_system(
 
     println!(
         "[glyphweave:perf] map={} motion={} zoom_percent={} pan_radius_tiles={:.1} \
+         fog={} gameplay_entities={} \
          workload_fps={workload_fps:.1} \
          workload_p95_ms={workload_p95_ms:.2} workload_max_ms={workload_max_ms:.2} \
          present_fps={present_fps:.1} present_p95_ms={present_p95_ms:.2} \
@@ -289,6 +342,8 @@ pub fn perf_check_system(
             .map(|value| format!("{value:.1}"))
             .unwrap_or_else(|| "default".into()),
         config.pan_radius_tiles,
+        config.fog,
+        config.gameplay_entities,
         render_metrics.lod_mode,
         render_metrics.visible_chunks,
         render_metrics.loaded_tile_chunks,
@@ -333,7 +388,8 @@ fn print_usage_and_exit(code: i32) -> ! {
         "usage: glyphweave [--map <path>] [--no-vsync] \
          [--perf-check --perf-motion <static|pan|zoom> --perf-threshold <fps> \
          --perf-warmup <secs> --perf-sample <secs> \
-         --perf-zoom-percent <percent> --perf-pan-radius-tiles <tiles>]"
+         --perf-zoom-percent <percent> --perf-pan-radius-tiles <tiles> \
+         --perf-fog --perf-gameplay-entities <count>]"
     );
     std::process::exit(code);
 }

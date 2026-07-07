@@ -136,6 +136,42 @@ pub fn reset_gameplay_for_world(gameplay: &mut GameplayModel, world: &World) {
     gameplay.0 = GameState::new_with_worker(spawn_coord_for_world(world));
 }
 
+pub fn seed_perf_gameplay_entities(gameplay: &mut GameplayModel, world: &World, count: usize) {
+    let anchor = spawn_coord_for_world(world);
+    gameplay.0 = GameState::default();
+    gameplay.stockpiles.push(glyphweave_core::gameplay::Stockpile {
+        area: TileArea::centered(anchor, 4),
+    });
+
+    for index in 0..count {
+        let coord = perf_coord(anchor, index);
+        let coord = if glyphweave_core::gameplay::is_passable(glyphweave_core::gameplay::rendered_tile_at(
+            world, coord,
+        )) {
+            coord
+        } else {
+            anchor
+        };
+        match index % 3 {
+            0 => {
+                gameplay.spawn_worker(format!("Worker {}", index / 3 + 1), coord);
+            }
+            1 => {
+                let resource = if index % 2 == 0 {
+                    ResourceKind::Stone
+                } else {
+                    ResourceKind::Wood
+                };
+                gameplay.add_item_pile(coord, resource, 1);
+            }
+            _ => {
+                gameplay.spawn_monster(coord);
+            }
+        }
+    }
+    gameplay.emit(format!("Seeded {count} perf gameplay entities."));
+}
+
 pub fn command_for_order(
     order: ActiveGameOrder,
     cursor: TileCoord,
@@ -418,6 +454,16 @@ fn spawn_coord_for_world(world: &World) -> TileCoord {
             glyphweave_core::gameplay::is_passable(Some(kind)).then_some(TileCoord::new(x, y))
         })
         .unwrap_or(origin)
+}
+
+fn perf_coord(anchor: TileCoord, index: usize) -> TileCoord {
+    let side = ((index as f32).sqrt().ceil() as i32).max(1);
+    let row = index as i32 / side;
+    let col = index as i32 % side;
+    TileCoord::new(
+        anchor.x + col - side / 2,
+        anchor.y + row - side / 2,
+    )
 }
 
 fn spawn_visual(

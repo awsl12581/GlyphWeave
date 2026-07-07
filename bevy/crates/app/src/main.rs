@@ -91,6 +91,7 @@ fn main() {
             render::atlas::load_atlas,
             load_initial_world,
             gameplay::init_gameplay_state,
+            perf::configure_perf_scene,
             camera::center_camera_on_world,
             render::tilemap::spawn_tilemaps,
         )
@@ -139,7 +140,17 @@ fn main() {
                     .chain(),
             );
     } else {
-        app.add_systems(Update, render::tilemap::draw_grid);
+        app.add_systems(
+            Update,
+            (
+                perf::perf_cursor_to_camera_system,
+                render::tilemap::draw_grid,
+                render::tilemap::draw_fog_of_war,
+                gameplay::sync_gameplay_entities,
+                gameplay::draw_gameplay_overlays,
+            )
+                .chain(),
+        );
     }
 
     if no_vsync {

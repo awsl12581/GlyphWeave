@@ -9,6 +9,8 @@ MIN_TILES="${GLYPHWEAVE_FPS_MIN_TILES:-50000}"
 MOTIONS="${GLYPHWEAVE_FPS_MOTIONS:-static pan zoom}"
 STRESS_ZOOM_PERCENT="${GLYPHWEAVE_FPS_STRESS_ZOOM_PERCENT:-60}"
 STRESS_PAN_RADIUS_TILES="${GLYPHWEAVE_FPS_STRESS_PAN_RADIUS_TILES:-220}"
+FEATURE_CHECKS="${GLYPHWEAVE_FPS_FEATURE_CHECKS:-fog entities}"
+GAMEPLAY_ENTITIES="${GLYPHWEAVE_FPS_GAMEPLAY_ENTITIES:-750}"
 
 run_perf_check() {
   local map="$1"
@@ -57,4 +59,23 @@ for map in "${maps[@]}"; do
   run_perf_check "$map" pan \
     --perf-zoom-percent "$STRESS_ZOOM_PERCENT" \
     --perf-pan-radius-tiles "$STRESS_PAN_RADIUS_TILES"
+
+  for feature in $FEATURE_CHECKS; do
+    case "$feature" in
+      fog)
+        echo "==> FPS budget: $(basename "$map") feature=fog motion=pan tiles=$tile_count"
+        run_perf_check "$map" pan --perf-fog
+        ;;
+      entities)
+        echo "==> FPS budget: $(basename "$map") feature=entities count=$GAMEPLAY_ENTITIES motion=pan tiles=$tile_count"
+        run_perf_check "$map" pan --perf-gameplay-entities "$GAMEPLAY_ENTITIES"
+        ;;
+      none|"")
+        ;;
+      *)
+        echo "Unknown GLYPHWEAVE_FPS_FEATURE_CHECKS entry: $feature" >&2
+        exit 2
+        ;;
+    esac
+  done
 done
