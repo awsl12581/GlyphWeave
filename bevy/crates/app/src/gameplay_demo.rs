@@ -2,9 +2,9 @@
 
 use crate::scenario::{FloodFortressPreset, create_flood_fortress_preset};
 use glyphweave_core::gameplay::{
-    BuildBlueprint, BuildKind, ChallengeStatus, CommandDispatcher, CommandEnvelope, CommandSource,
-    GameCommand, GameState, ResourceKind, RuleBasedTextCommandSource, SimulationConfig, TileArea,
-    TileCoord, tick_gameplay,
+    BuildBlueprint, BuildKind, ChallengeScore, ChallengeStatus, CommandDispatcher, CommandEnvelope,
+    CommandSource, GameCommand, GameState, JobStatus, ResourceKind, RuleBasedTextCommandSource,
+    SimulationConfig, TileArea, TileCoord, tick_gameplay,
 };
 use glyphweave_core::tile::TileKind;
 use glyphweave_core::world::World;
@@ -172,51 +172,111 @@ pub fn run() -> Result<(), String> {
 }
 
 pub fn run_flood_fortress() -> Result<(), String> {
-    let (mut world, mut state) = create_flood_fortress_preset(FloodFortressPreset::BreachNight);
+    println!("[glyphweave:flood] scripted Flood Fortress challenge suite");
+    println!("[glyphweave:flood] objective: play and win all built-in flood levels");
+
+    for preset in FloodFortressPreset::ALL {
+        run_flood_fortress_preset(preset, true)?;
+    }
+
+    println!("[glyphweave:flood] suite complete");
+    Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FloodDemoOutcome {
+    preset: FloodFortressPreset,
+    status: ChallengeStatus,
+    score: ChallengeScore,
+    failed_jobs: usize,
+}
+
+fn run_flood_fortress_preset(
+    preset: FloodFortressPreset,
+    verbose: bool,
+) -> Result<FloodDemoOutcome, String> {
+    let (mut world, mut state) = create_flood_fortress_preset(preset);
+    let core = state
+        .core_storehouse
+        .ok_or_else(|| format!("{}: missing core storehouse", preset.label()))?
+        .area;
+    let now = state.time.tick;
+    let breach_tick = state
+        .challenge
+        .as_ref()
+        .map(|challenge| challenge.flood.breach_tick)
+        .ok_or_else(|| format!("{}: missing challenge state", preset.label()))?;
+    let survive_for_ticks = breach_tick.saturating_sub(now) + 48;
     if let Some(challenge) = state.challenge.as_mut() {
-        challenge.flood.breach_tick = state.time.tick + 3;
-        challenge.goals.silver_min_flood_structures = 5;
+        challenge.goals.survive_for_ticks = survive_for_ticks;
+        challenge.goals.silver_min_flood_structures = 16;
     }
 
     let config = SimulationConfig {
-        minutes_per_tick: 120,
         job_work_ticks: 1,
         monster_spawn_interval: u64::MAX,
         water_spread_interval: 1,
-        core_flood_failure_ticks: 4,
+        core_flood_failure_ticks: 6,
         ..SimulationConfig::default()
     };
 
-    println!("[glyphweave:flood] scripted Flood Fortress challenge");
-    println!("[glyphweave:flood] objective: survive until day 3 with the core dry");
+    if verbose {
+        println!(
+            "[glyphweave:flood] level: {} ({})",
+            preset.label(),
+            preset.description()
+        );
+        println!(
+            "[glyphweave:flood]   breach_tick={} survive_ticks={} core=({},{}..{},{})",
+            breach_tick, survive_for_ticks, core.min_x, core.min_y, core.max_x, core.max_y
+        );
+    }
 
-    dispatch(
-        &world,
-        &mut state,
-        GameCommand::Build {
-            blueprint: BuildBlueprint {
-                kind: BuildKind::Wall,
-                area: TileArea::rect(TileCoord::new(-2, -2), TileCoord::new(-2, 2)),
-            },
-        },
-        "build floodwall",
-    )?;
     dispatch(
         &world,
         &mut state,
         GameCommand::Mine {
-            area: TileArea::single(TileCoord::new(-3, -3)),
+            area: TileArea::single(channel_target(preset)),
         },
         "dig channel",
     )?;
+    run_until(&mut world, &mut state, config, "dig channel", |_, state| {
+        state.open_job_count() == 0
+    })?;
+    let failed_jobs = failed_job_count(&state);
+    if failed_jobs > 0 {
+        let failures = failed_job_summary(&state);
+        return Err(format!(
+            "{}: {failed_jobs} job(s) failed: {failures}",
+            preset.label()
+        ));
+    }
 
-    run_until(
-        &mut world,
-        &mut state,
-        config,
-        "finish works",
-        |_, state| state.open_job_count() == 0,
-    )?;
+    for (label, area) in core_ring_sections(core) {
+        dispatch(
+            &world,
+            &mut state,
+            GameCommand::Build {
+                blueprint: BuildBlueprint {
+                    kind: BuildKind::Wall,
+                    area,
+                },
+            },
+            label,
+        )?;
+        run_until(&mut world, &mut state, config, label, |_, state| {
+            state.open_job_count() == 0
+        })?;
+        let failed_jobs = failed_job_count(&state);
+        if failed_jobs > 0 {
+            let failures = failed_job_summary(&state);
+            return Err(format!(
+                "{}: {failed_jobs} job(s) failed: {failures}",
+                preset.label()
+            ));
+        }
+    }
+
     run_until(
         &mut world,
         &mut state,
@@ -228,26 +288,89 @@ pub fn run_flood_fortress() -> Result<(), String> {
     let challenge = state
         .challenge
         .as_ref()
-        .ok_or_else(|| "missing challenge state".to_string())?;
-    println!("[glyphweave:flood] status: {:?}", challenge.status);
-    println!(
-        "[glyphweave:flood] score: survivors={}/{} flooded={} core_wet={} built={} channels={} food={} wood={} stone={}",
-        challenge.score.surviving_workers,
-        challenge.score.total_workers,
-        challenge.score.flooded_tiles,
-        challenge.score.core_wet_ticks,
-        challenge.score.flood_structures_built,
-        challenge.score.channels_dug,
-        challenge.score.remaining_food,
-        challenge.score.remaining_wood,
-        challenge.score.remaining_stone
-    );
-    println!("[glyphweave:flood] recent events:");
-    for event in state.events.iter().rev().take(10).rev() {
-        println!("[glyphweave:flood]   #{} {}", event.tick, event.message);
+        .ok_or_else(|| format!("{}: missing challenge state", preset.label()))?;
+    if !matches!(challenge.status, ChallengeStatus::Won(_)) {
+        return Err(format!(
+            "{}: unexpected final status {:?}",
+            preset.label(),
+            challenge.status
+        ));
     }
-    println!("[glyphweave:flood] complete");
-    Ok(())
+    if challenge.score.core_wet_ticks > 0 {
+        return Err(format!(
+            "{}: core got wet for {} tick(s)",
+            preset.label(),
+            challenge.score.core_wet_ticks
+        ));
+    }
+
+    if verbose {
+        println!("[glyphweave:flood]   status: {:?}", challenge.status);
+        println!(
+            "[glyphweave:flood]   score: survivors={}/{} flooded={} core_wet={} built={} channels={} food={} wood={} stone={}",
+            challenge.score.surviving_workers,
+            challenge.score.total_workers,
+            challenge.score.flooded_tiles,
+            challenge.score.core_wet_ticks,
+            challenge.score.flood_structures_built,
+            challenge.score.channels_dug,
+            challenge.score.remaining_food,
+            challenge.score.remaining_wood,
+            challenge.score.remaining_stone
+        );
+        println!("[glyphweave:flood]   recent events:");
+        for event in state.events.iter().rev().take(8).rev() {
+            println!("[glyphweave:flood]     #{} {}", event.tick, event.message);
+        }
+    }
+
+    Ok(FloodDemoOutcome {
+        preset,
+        status: challenge.status.clone(),
+        score: challenge.score.clone(),
+        failed_jobs,
+    })
+}
+
+fn core_ring_sections(core: TileArea) -> [(&'static str, TileArea); 4] {
+    [
+        (
+            "build north wall",
+            TileArea::rect(
+                TileCoord::new(core.min_x - 1, core.min_y - 1),
+                TileCoord::new(core.max_x + 1, core.min_y - 1),
+            ),
+        ),
+        (
+            "build south wall",
+            TileArea::rect(
+                TileCoord::new(core.min_x - 1, core.max_y + 1),
+                TileCoord::new(core.max_x + 1, core.max_y + 1),
+            ),
+        ),
+        (
+            "build east wall",
+            TileArea::rect(
+                TileCoord::new(core.max_x + 1, core.min_y),
+                TileCoord::new(core.max_x + 1, core.max_y),
+            ),
+        ),
+        (
+            "build west wall",
+            TileArea::rect(
+                TileCoord::new(core.min_x - 1, core.min_y),
+                TileCoord::new(core.min_x - 1, core.max_y),
+            ),
+        ),
+    ]
+}
+
+fn channel_target(preset: FloodFortressPreset) -> TileCoord {
+    match preset {
+        FloodFortressPreset::BreachNight => TileCoord::new(-3, -3),
+        FloodFortressPreset::LowlandGranary => TileCoord::new(-5, -4),
+        FloodFortressPreset::TwinRivers => TileCoord::new(-9, -5),
+    }
 }
 
 fn demo_world() -> World {
@@ -305,8 +428,11 @@ fn run_until(
     label: &'static str,
     done: impl Fn(&World, &GameState) -> bool,
 ) -> Result<(), String> {
-    for tick in 1..=160 {
+    for tick in 1..=320 {
         tick_gameplay(world, state, config);
+        if let Some(ChallengeStatus::Lost { reason }) = state.challenge_status() {
+            return Err(format!("{label}: challenge lost: {reason}"));
+        }
         if done(world, state) {
             let worker = state
                 .workers
@@ -325,4 +451,48 @@ fn run_until(
         }
     }
     Err(format!("{label}: timed out"))
+}
+
+fn failed_job_summary(state: &GameState) -> String {
+    state
+        .jobs
+        .iter()
+        .filter(|job| matches!(job.status, JobStatus::Failed))
+        .map(|job| {
+            format!(
+                "{:?}:{}",
+                job.kind,
+                job.failure_reason.as_deref().unwrap_or("unknown")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn failed_job_count(state: &GameState) -> usize {
+    state
+        .jobs
+        .iter()
+        .filter(|job| matches!(job.status, JobStatus::Failed))
+        .count()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scripted_flood_demo_wins_every_builtin_preset() {
+        for preset in FloodFortressPreset::ALL {
+            let outcome = run_flood_fortress_preset(preset, false)
+                .unwrap_or_else(|err| panic!("{}: {err}", preset.label()));
+            assert_eq!(outcome.preset, preset);
+            assert!(matches!(outcome.status, ChallengeStatus::Won(_)));
+            assert_eq!(outcome.failed_jobs, 0);
+            assert_eq!(outcome.score.core_wet_ticks, 0);
+            assert_eq!(outcome.score.flood_structures_built, 16);
+            assert!(outcome.score.channels_dug >= 1);
+            assert!(outcome.score.flooded_tiles > 0);
+        }
+    }
 }

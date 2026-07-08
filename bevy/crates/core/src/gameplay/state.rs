@@ -425,6 +425,8 @@ impl ChallengeStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChallengeGoals {
     pub survive_until_day: u32,
+    #[serde(default = "default_survive_for_ticks")]
+    pub survive_for_ticks: u64,
     pub silver_min_survivors: usize,
     pub silver_min_flood_structures: u32,
     pub gold_min_channels: u32,
@@ -433,10 +435,15 @@ pub struct ChallengeGoals {
     pub gold_min_stone: u32,
 }
 
+const fn default_survive_for_ticks() -> u64 {
+    480
+}
+
 impl Default for ChallengeGoals {
     fn default() -> Self {
         Self {
             survive_until_day: 3,
+            survive_for_ticks: 480,
             silver_min_survivors: 3,
             silver_min_flood_structures: 8,
             gold_min_channels: 1,

@@ -278,3 +278,55 @@ fn set_tile(world: &mut World, coord: TileCoord, kind: TileKind) {
     let layer = world.active_layer.clone();
     world.set(&layer, coord.x, coord.y, kind);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use glyphweave_core::gameplay::{ChallengeStatus, SimulationConfig, tick_gameplay};
+
+    #[test]
+    fn undefended_flood_presets_lose_to_core_flooding() {
+        for preset in FloodFortressPreset::ALL {
+            let (mut world, mut state) = create_flood_fortress_preset(preset);
+            state
+                .challenge
+                .as_mut()
+                .expect("challenge")
+                .goals
+                .survive_for_ticks = 240;
+            let config = SimulationConfig {
+                monster_spawn_interval: u64::MAX,
+                water_spread_interval: 1,
+                core_flood_failure_ticks: 6,
+                ..SimulationConfig::default()
+            };
+
+            for _ in 0..220 {
+                tick_gameplay(&mut world, &mut state, config);
+                if !matches!(state.challenge_status(), Some(ChallengeStatus::Running)) {
+                    break;
+                }
+            }
+
+            assert!(
+                matches!(
+                    state.challenge_status(),
+                    Some(ChallengeStatus::Lost { reason }) if reason == "core storehouse flooded"
+                ),
+                "{preset:?} should lose when no defense is built, got {:?}",
+                state.challenge_status()
+            );
+            assert!(
+                state
+                    .challenge
+                    .as_ref()
+                    .expect("challenge")
+                    .flood
+                    .stats
+                    .core_wet_ticks
+                    > 0,
+                "{preset:?} should record core wet ticks"
+            );
+        }
+    }
+}
