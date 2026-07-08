@@ -201,6 +201,11 @@ Parameters:
 </p>
 <p align="center"><em>Badlands Wadi</em></p>
 
+<p align="center">
+  <img src="media/dragon_island.png" alt="Dragon Archipelago — HD render" width="720">
+</p>
+<p align="center"><em>Dragon Archipelago — traced from reference</em></p>
+
 ### Show Off Your Maps
 
 Built a dungeon, town, or wilderness you're proud of? Contributions are welcome — landscapes, themed vignettes, and unusual palettes are all fair game.
