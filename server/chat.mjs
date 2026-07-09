@@ -21,6 +21,7 @@
 
 import { createOpenAI } from '@ai-sdk/openai'
 import { streamText, convertToModelMessages } from 'ai'
+import { buildSystemPrompt, buildToolDefinitions } from './chat-tools.mjs'
 
 /** Build an OpenAI-compatible provider instance.
  *  Reads env vars lazily so .env files loaded by Vite's loadEnv are available. */
@@ -71,160 +72,12 @@ function getOpenAI() {
 }
 
 /**
- * Tool definitions exposed to the AI model.
- * These are the schemas only — execution happens on the client side.
+ * Tool definitions & system prompt — auto-generated from the presets catalog
+ * and tile catalog. Edit server/presets-catalog.mjs or server/chat-tools.mjs
+ * to add/remove presets or tiles.
  */
-const TOOLS = {
-  getMapState: {
-    description:
-      'Get a summary of the current map state: world name, tile size, theme, ' +
-      'number of layers, and approximate tile count per layer. Use this to ' +
-      'understand what the user is working with before suggesting changes.',
-    parameters: {
-      type: 'object',
-      properties: {},
-      required: [],
-    },
-  },
-
-  getTileTypes: {
-    description:
-      'Get the list of all available tile types with their categories. ' +
-      'Use this when you need to know what tiles are available to place.',
-    parameters: {
-      type: 'object',
-      properties: {},
-      required: [],
-    },
-  },
-
-  getPresets: {
-    description:
-      'Get the list of all available presets (room templates, corridors, ' +
-      'features, dungeons, traps). Each preset has an id, name, description, ' +
-      'category, and dimensions.',
-    parameters: {
-      type: 'object',
-      properties: {},
-      required: [],
-    },
-  },
-
-  placeTile: {
-    description:
-      'Place a single tile at the specified coordinates. Use this for ' +
-      'placing individual tiles like doors, altars, fountains, etc.',
-    parameters: {
-      type: 'object',
-      properties: {
-        x: { type: 'number', description: 'X coordinate (column)' },
-        y: { type: 'number', description: 'Y coordinate (row)' },
-        tileId: {
-          type: 'string',
-          description: 'Tile type ID (e.g. wall, floor, door, water, tree)',
-        },
-      },
-      required: ['x', 'y', 'tileId'],
-    },
-  },
-
-  placePreset: {
-    description:
-      'Place a preset structure (room, corridor, feature, etc.) at the ' +
-      'specified origin coordinates. The preset will be drawn from its ' +
-      'top-left corner.',
-    parameters: {
-      type: 'object',
-      properties: {
-        presetId: {
-          type: 'string',
-          description: 'ID of the preset to place (e.g. small-room, straight-hallway, fountain-feature)',
-        },
-        x: {
-          type: 'number',
-          description: 'X coordinate (column) for the top-left corner of the preset',
-        },
-        y: {
-          type: 'number',
-          description: 'Y coordinate (row) for the top-left corner of the preset',
-        },
-      },
-      required: ['presetId', 'x', 'y'],
-    },
-  },
-
-  fillArea: {
-    description:
-      'Flood-fill an area starting from the specified coordinates with the ' +
-      'given tile type. Useful for filling rooms with floor tiles or water.',
-    parameters: {
-      type: 'object',
-      properties: {
-        x: { type: 'number', description: 'X coordinate (column) to start filling from' },
-        y: { type: 'number', description: 'Y coordinate (row) to start filling from' },
-        tileId: {
-          type: 'string',
-          description: 'Tile type ID to fill with (e.g. floor, water, grass)',
-        },
-      },
-      required: ['x', 'y', 'tileId'],
-    },
-  },
-
-  placeMultipleTiles: {
-    description:
-      'Place multiple tiles at once in a batch. Use this for drawing lines, ' +
-      'walls, or filling rectangular areas efficiently.',
-    parameters: {
-      type: 'object',
-      properties: {
-        tiles: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              x: { type: 'number' },
-              y: { type: 'number' },
-              tileId: { type: 'string' },
-            },
-            required: ['x', 'y', 'tileId'],
-          },
-          description: 'Array of tile placements {x, y, tileId}',
-        },
-      },
-      required: ['tiles'],
-    },
-  },
-
-  undoLastChange: {
-    description:
-      'Undo the most recent change made by the assistant. Use this when the ' +
-      'user asks to revert or undo an action.',
-    parameters: {
-      type: 'object',
-      properties: {},
-      required: [],
-    },
-  },
-}
-
-const SYSTEM_PROMPT =
-  'You are an expert map designer assistant for GlyphWeave, an ASCII roguelike tilemap editor. ' +
-  'Your job is to help users design and edit dungeon maps.\n\n' +
-  'CRITICAL RULES — you MUST follow these exactly:\n' +
-  '1. NEVER just describe what you will do. ALWAYS use the tools to actually do it.\n' +
-  '2. Before making ANY changes, first call getMapState, getTileTypes, and getPresets in parallel.\n' +
-  '3. After gathering information, immediately call the action tools (placeTile, placePreset, fillArea, etc.).\n' +
-  '4. Be concise — confirm what you did in 1-2 sentences after the tools complete.\n\n' +
-  'Guidelines:\n' +
-  '- When the user asks to create rooms, corridors, or structures, use placePreset with the appropriate preset.\n' +
-  '- When the user asks for individual tiles, use placeTile.\n' +
-  '- When the user wants to fill an area, use fillArea.\n' +
-  '- The coordinate system: (0,0) is top-left, x increases right, y increases down.\n' +
-  '- void means "no tile" (empty space). Do not place void tiles unless explicitly asked.\n' +
-  'Tile IDs: wall, floor, floorAlt, door, doorOpen, water, deepWater, lava, ' +
-  'tree, grass, bridge, stairsDown, stairsUp, altar, fountain, grave, trap, pillar, ' +
-  'treasure, shop, table, throne, cage, blood, bar.'
+const TOOLS = buildToolDefinitions()
+const SYSTEM_PROMPT = buildSystemPrompt()
 
 /**
  * Read and parse the JSON request body from a Node.js readable stream.
