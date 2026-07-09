@@ -1,10 +1,11 @@
 'use client'
+import { useTranslation } from 'react-i18next'
 import { useMapStore } from '@/stores/map-store'
 import { TILE_TYPE_LIST, TILE_CATEGORIES } from '@/constants/tiles'
 import { resolveTheme } from '@/lib/theme-registry'
-import { ScrollArea } from '@/components/ui/scroll-area'
 
 export function TilePalette() {
+  const { t } = useTranslation()
   const activeTileType = useMapStore((s) => s.activeTileType)
   const setActiveTileType = useMapStore((s) => s.setActiveTileType)
   const currentTool = useMapStore((s) => s.currentTool)
@@ -24,17 +25,17 @@ export function TilePalette() {
   }
 
   return (
-    <ScrollArea className="flex-1 px-2 py-2">
-      <div className="space-y-4">
+    <div className="flex-1 min-h-0 overflow-y-auto scrollbar-custom">
+      <div className="px-2 py-2 space-y-4">
         {TILE_CATEGORIES.map((cat) => {
           const tiles = TILE_TYPE_LIST.filter((t) => t.category === cat.key && t.id !== 'void')
           if (tiles.length === 0) return null
           return (
             <div key={cat.key}>
               <h4 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1.5 px-1">
-                {cat.label}
+                {t(`tilepalette.${cat.key}`, cat.label)}
               </h4>
-              <div className="grid grid-cols-4 gap-1">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(48px,48px))] gap-1">
                 {tiles.map((tile) => {
                   const colors = theme.colors[tile.id]
                   const isSelected = activeTileType === tile.id
@@ -46,7 +47,7 @@ export function TilePalette() {
                         flex flex-col items-center justify-center rounded-md p-1.5 gap-0.5
                         transition-colors cursor-pointer
                         ${isSelected
-                          ? 'bg-zinc-700 ring-1 ring-zinc-400'
+                          ? 'bg-zinc-700 ring-1 ring-inset ring-zinc-400'
                           : 'hover:bg-zinc-800 bg-zinc-900'
                         }
                       `}
@@ -58,7 +59,7 @@ export function TilePalette() {
                         {tile.char}
                       </span>
                       <span className="text-[9px] text-zinc-500 truncate w-full text-center leading-tight">
-                        {tile.name}
+                        {t(`tileType.${tile.id}`, tile.name)}
                       </span>
                     </button>
                   )
@@ -68,6 +69,6 @@ export function TilePalette() {
           )
         })}
       </div>
-    </ScrollArea>
+    </div>
   )
 }

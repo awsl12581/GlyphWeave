@@ -16,6 +16,7 @@ const MINIMAP_HEIGHT = 140
 export function Minimap({ stageRef }: MinimapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const cachedBase = useRef<ImageData | null>(null)
+  const draggingRef = useRef(false)
   const tiles = useMapStore((s) => s.tiles)
   const layers = useMapStore((s) => s.layers)
   const themeId = useMapStore((s) => s.themeId)
@@ -27,7 +28,6 @@ export function Minimap({ stageRef }: MinimapProps) {
 
   const theme = resolveTheme(themeId, customThemes)
 
-  // ── compute map bounds from all layers ──
   const bounds = useCallback(() => {
     return computeTileBounds(
       flattenLayerTiles(tiles, layers),
@@ -90,7 +90,6 @@ export function Minimap({ stageRef }: MinimapProps) {
     ctx.strokeRect(mx, my, mw, mh)
   }, [stageRef, tileSize])
 
-  // ── draw base tiles and cache ImageData ──
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -118,7 +117,6 @@ export function Minimap({ stageRef }: MinimapProps) {
       )
     }
 
-    // cache the full base image so the animation loop can restore it
     cachedBase.current = ctx.getImageData(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT)
 
     canvas.dataset.scale = String(scale)
@@ -127,7 +125,6 @@ export function Minimap({ stageRef }: MinimapProps) {
     drawViewport()
   }, [tiles, layers, theme.colors, tileSize, bounds, drawViewport])
 
-  // ── viewport rect overlay (evented, no permanent RAF loop) ──
   useEffect(() => {
     return useUiStore.subscribe((state) => {
       viewportRef.current = state.viewport
@@ -135,32 +132,29 @@ export function Minimap({ stageRef }: MinimapProps) {
     })
   }, [drawViewport])
 
-  // ── click to pan ──
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      const stage = stageRef.current
-      if (!stage) return
+  const minimapToWorld = useCallback(
+    (px: number, py: number): { wx: number; wy: number } => {
       const canvas = canvasRef.current
-      if (!canvas) return
-
+      if (!canvas) return { wx: 0, wy: 0 }
       const rect = canvas.getBoundingClientRect()
-      const px = e.clientX - rect.left
-      const py = e.clientY - rect.top
+      const cx = px - rect.left
+      const cy = py - rect.top
       const scale = parseFloat(canvas.dataset.scale || '1')
       const originX = parseInt(canvas.dataset.originX || '0', 10)
       const originY = parseInt(canvas.dataset.originY || '0', 10)
+      return { wx: cx / scale + originX * tileSize, wy: cy / scale + originY * tileSize }
+    },
+    [tileSize],
+  )
 
-      // minimap pixel → world coordinate
-      const wx = px / scale + originX * tileSize
-      const wy = py / scale + originY * tileSize
-
-      // center viewport on this point
-      const vw = stage.width()
-      const vh = stage.height()
+  const panToWorld = useCallback(
+    (wx: number, wy: number): void => {
+      const stage = stageRef.current
+      if (!stage) return
       const s = stage.scaleX()
       const nextPosition = {
-        x: -wx * s + vw / 2,
-        y: -wy * s + vh / 2,
+        x: -wx * s + stage.width() / 2,
+        y: -wy * s + stage.height() / 2,
       }
       stage.position(nextPosition)
       stage.batchDraw()
@@ -170,8 +164,37 @@ export function Minimap({ stageRef }: MinimapProps) {
         scale: s,
       })
     },
-    [setViewport, stageRef, tileSize],
+    [setViewport, stageRef],
   )
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      e.preventDefault()
+      draggingRef.current = true
+      const { wx, wy } = minimapToWorld(e.clientX, e.clientY)
+      panToWorld(wx, wy)
+      document.body.style.cursor = 'grabbing'
+    },
+    [minimapToWorld, panToWorld],
+  )
+
+  useEffect(() => {
+    const handleMove = (e: MouseEvent) => {
+      if (!draggingRef.current) return
+      const { wx, wy } = minimapToWorld(e.clientX, e.clientY)
+      panToWorld(wx, wy)
+    }
+    const handleUp = () => {
+      draggingRef.current = false
+      document.body.style.cursor = ''
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [minimapToWorld, panToWorld])
 
   return (
     <div
@@ -184,7 +207,7 @@ export function Minimap({ stageRef }: MinimapProps) {
         width={MINIMAP_WIDTH}
         height={MINIMAP_HEIGHT}
         className="block cursor-crosshair"
-        onClick={handleClick}
+        onMouseDown={handleMouseDown}
       />
     </div>
   )

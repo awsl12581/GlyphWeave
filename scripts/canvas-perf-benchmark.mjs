@@ -335,7 +335,27 @@ function assertThreshold(results) {
   }
 }
 
+async function closeBrowser(browser) {
+  const closeTimeoutMs = Number.parseInt(process.env.PERF_BROWSER_CLOSE_TIMEOUT_MS || '5000', 10)
+  let timeout = null
+  try {
+    await Promise.race([
+      browser.close(),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`browser.close timed out after ${closeTimeoutMs}ms`)), closeTimeoutMs)
+      }),
+    ])
+  } catch (error) {
+    log(`warning: ${error.message}`)
+    const browserProcess = browser.process?.()
+    browserProcess?.kill('SIGTERM')
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
+}
+
 const server = shouldStartServer ? startServer() : null
+let exitCode = 0
 
 try {
   if (server) {
@@ -363,7 +383,7 @@ try {
     results.push(await measureScenario(page, scenario))
   }
 
-  await browser.close()
+  await closeBrowser(browser)
   assertThreshold(results)
 
   console.log(JSON.stringify({
@@ -372,6 +392,13 @@ try {
     minFps: minFps > 0 ? minFps : null,
     scenarios: results,
   }, null, 2))
+} catch (error) {
+  exitCode = 1
+  console.error(error)
 } finally {
-  if (server) server.kill('SIGTERM')
+  if (server) {
+    server.kill('SIGTERM')
+    server.unref?.()
+  }
+  process.exit(exitCode)
 }

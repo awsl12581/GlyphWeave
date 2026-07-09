@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMapStore } from '@/stores/map-store'
 import { convertImageFileToMap, DEFAULT_IMAGE_CONVERT_WIDTH } from '@/lib/image-convert'
 import { resolveTheme } from '@/lib/theme-registry'
@@ -6,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Download, Upload, Image } from 'lucide-react'
 
 export function ExportPanel() {
+  const { t } = useTranslation()
   const exportMap = useMapStore((s) => s.exportMap)
   const importMap = useMapStore((s) => s.importMap)
   const themeId = useMapStore((s) => s.themeId)
@@ -68,8 +70,6 @@ export function ExportPanel() {
   const handleRenderExport = useCallback(async (format: 'svg' | 'png') => {
     const data = exportMap()
     const name = data.worldName.replace(/\s+/g, '_')
-
-    // Try the local API first (works in dev / self-hosted Node server)
     const baseUrl = window.location.origin
     const url = `${baseUrl}/api/render?format=${format}`
 
@@ -94,30 +94,30 @@ export function ExportPanel() {
 
   return (
     <div className="flex flex-col gap-3 p-3">
-      <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Export / Import</h4>
+      <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">{t('exportPanel.title')}</h4>
       <p className="text-[11px] text-zinc-500 leading-relaxed">
-        Export your map as a <code>.gemap</code> JSON file, or import one to continue editing.
+        {t('exportPanel.desc')}
       </p>
       <Button variant="outline" className="w-full justify-start gap-2 text-xs h-8" onClick={handleExport}>
         <Download className="w-3.5 h-3.5" />
-        Export .gemap
+        {t('exportPanel.exportGemap')}
       </Button>
       <Button variant="outline" className="w-full justify-start gap-2 text-xs h-8" onClick={handleImport}>
         <Upload className="w-3.5 h-3.5" />
-        Import .gemap
+        {t('exportPanel.importGemap')}
       </Button>
       <Button variant="outline" className="w-full justify-start gap-2 text-xs h-8" onClick={handleImageImport}>
         <Image className="w-3.5 h-3.5" />
-        Import Image
+        {t('exportPanel.importImage')}
       </Button>
 
-      <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider pt-1">Render</h4>
+      <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider pt-1">{t('exportPanel.render')}</h4>
       <p className="text-[11px] text-zinc-500 leading-relaxed">
-        Render the full map to an image via the API.
+        {t('exportPanel.renderDesc')}
       </p>
       <Button variant="outline" className="w-full justify-start gap-2 text-xs h-8" onClick={() => handleRenderExport('svg')}>
         <Image className="w-3.5 h-3.5" />
-        Export SVG
+        {t('exportPanel.exportSvg')}
       </Button>
 
       <input
