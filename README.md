@@ -11,6 +11,7 @@
 <p align="center">
   <a href="https://github.com/HsiangNianian/GlyphWeave"><img src="https://img.shields.io/github/stars/HsiangNianian/GlyphWeave?logo=github" alt="GitHub stars"></a>
   <a href="https://github.com/HsiangNianian/GlyphWeave/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-65a30d?style=flat" alt="MIT license"></a>
+  <a href="https://glyphweave.hydroroll.team"><img src="https://img.shields.io/badge/demo-glyphweave.hydroroll.team-000?style=flat&logo=cloudflare" alt="Demo"></a>
   <br>
   <img src="https://img.shields.io/badge/React_19-000?style=flat&logo=react" alt="React 19">
   <img src="https://img.shields.io/badge/Konva-000?style=flat&logo=canvas" alt="Konva">
@@ -65,7 +66,9 @@ The Bevy port is the active development direction (desktop-first, heading toward
 - **Export / Import** as `.gemap` JSON — preserves layers, theme, and world name.
 - **Minimap** — real-time overview with viewport rectangle. Click to jump.
 - **View Distance** — configurable render padding for smooth panning.
-- **Render API** — generate PNG images from any map via `GET /api/render` or `POST /api/render`.
+- **Render API** — generate PNG/SVG images from any map via `GET /api/render` or `POST /api/render`.
+- **Image import** — convert browser-decodable images into theme-matched GlyphWeave maps directly in the app.
+- **Convert API** — convert PNG/JPEG/WebP images into theme-matched GlyphWeave maps and SVG output on Node-backed servers.
 - **Keyboard shortcuts** — `B` brush, `E` eraser, `F` flood fill, `P` pan, `S` select, `G` grid toggle.
 - **Demo maps** — load "The Forgotten Catacombs" or "Grand Realm of Aethra" to explore.
 
@@ -98,61 +101,150 @@ cargo run --manifest-path bevy/Cargo.toml -p glyphweave-app
 
 A 1280×720 window opens and auto-loads the Grand Realm of Aethra demo. Left-drag paints the selected tile, the wheel zooms to the cursor, and middle/right-drag pans. The left panel holds the tile palette and theme toggle; the right panel lists layers. Tests: `cargo test --manifest-path bevy/Cargo.toml --workspace`.
 
-> The **Render API** is automatically available on the same port under `/api/` — `GET /api/render?data=<base64>` or `POST /api/render` with a JSON body. See the [render server docs](server/index.mjs) for details.
-
+> The **Render API** and **Convert API** are available on the same port under `/api/` during development. In production, `pnpm start` serves the frontend plus Node-backed APIs on port 3001. Cloudflare Workers + Assets deployments support rendering and app-side browser image import; direct `/api/convert` remains Node-only.
 
 ## Keyboard Shortcuts
 
-| Key               | Action          |
-| ----------------- | --------------- |
-| `B`               | Brush tool      |
-| `E`               | Eraser tool     |
-| `F`               | Flood fill      |
-| `P`               | Pan tool        |
-| `S`               | Select tool     |
-| `Ctrl+Z`          | Undo            |
-| `Ctrl+Shift+Z`    | Redo            |
-| `G`               | Toggle grid     |
+| Key            | Action      |
+| -------------- | ----------- |
+| `B`            | Brush tool  |
+| `E`            | Eraser tool |
+| `F`            | Flood fill  |
+| `P`            | Pan tool    |
+| `S`            | Select tool |
+| `Ctrl+Z`       | Undo        |
+| `Ctrl+Shift+Z` | Redo        |
+| `G`            | Toggle grid |
 
 ---
 
 ## Render API
 
-GlyphWeave ships with a standalone render server that converts tilemaps to PNG images.
+The Render API converts tilemaps to images. It's available in three environments:
 
-```bash
-# Start the render server (optional, already available in dev mode)
-pnpm render-server
-```
+| Environment | Command | URL | Output |
+|---|---|---|---|
+| Development | `pnpm dev` | `http://localhost:5173/api/render` | PNG default or SVG (`?format=svg`) |
+| Production (Node) | `pnpm build && pnpm start` | `http://localhost:3001/api/render` | PNG default or SVG (`?format=svg`) |
+| Production (Cloudflare) | `pnpm deploy` | `https://glyphweave.hydroroll.team/api/render` | SVG |
 
 ### POST (recommended for large maps)
 
 ```bash
-curl -X POST http://localhost:3001/api/render \
+curl -X POST https://glyphweave.hydroroll.team/api/render \
   -H "Content-Type: application/json" \
-  -d @my-map.gemap > map.png
+  -d @my-map.gemap > map.svg
 ```
 
 ### GET (small maps)
 
 ```bash
 DATA=$(echo -n '{"tiles":{"0,0":"wall"}}' | base64)
-curl "http://localhost:3001/api/render?data=$DATA" > map.png
+curl "https://glyphweave.hydroroll.team/api/render?data=$DATA" > map.svg
 ```
 
 Parameters:
+
 - `theme` — `ansi-16` (default) or `cogmind`
 - `padding` — extra tiles around bounds (default: `1`)
 - `scale` — pixels per tile (default: auto-fit ≤ 4096px)
+- `format` — `svg` or `png`; PNG requires the Node renderer
+
+### Local / Self-hosted
+
+```bash
+pnpm dev                           # dev server, http://localhost:5173
+pnpm build && pnpm start           # production, http://localhost:3001
+
+curl -X POST http://localhost:3001/api/render \
+  -H "Content-Type: application/json" \
+  -d @my-map.gemap > map.png
+
+curl -X POST "http://localhost:3001/api/render?format=svg" \
+  -H "Content-Type: application/json" \
+  -d @my-map.gemap > map.svg
+```
+
+---
+
+## Convert API
+
+The Convert API samples an uploaded image into a GlyphWeave map by matching
+each output cell to the nearest tile color in the supplied theme.
+
+Cloudflare deployments still support image import in the app and `/api`
+Playground by converting in the browser. Direct `/api/convert` requests require
+the Node image renderer.
+
+| Environment | Command | URL | Output |
+|---|---|---|---|
+| Development | `pnpm dev` | `http://localhost:5173/api/convert` | SVG default, PNG, `.gemap`, or JSON bundle |
+| Production (Node) | `pnpm build && pnpm start` | `http://localhost:3001/api/convert` | SVG default, PNG, `.gemap`, or JSON bundle |
+| Production (Cloudflare) | `pnpm deploy` | `https://glyphweave.hydroroll.team/api/convert` | Not available (`501`) |
+
+`theme` or `themeId` is required because conversion uses the theme palette as
+the tile classifier.
+
+```bash
+curl -X POST "http://localhost:3001/api/convert?themeId=ansi-16&width=160&format=svg" \
+  -H "Content-Type: image/png" \
+  --data-binary @input.png > converted.svg
+```
+
+Multipart uploads can pass a custom theme object:
+
+```bash
+curl -X POST "http://localhost:3001/api/convert?width=160&format=both" \
+  -F "image=@input.webp" \
+  -F "theme=@my-theme.json" > converted.json
+```
+
+Parameters:
+
+- `themeId` — built-in theme ID such as `ansi-16` or `cogmind`
+- `theme` — custom theme JSON object, or a built-in theme ID alias
+- `width` / `height` — output map dimensions; default width is `160`, max side is `512`
+- `format` — `svg` (default), `png`, `gemap`, or `both`
+- `worldName` — map name in `.gemap` output
+- `alphaThreshold` — transparent pixels at or below this alpha become void
 
 ---
 
 ## Demo Maps
 
-| Map                    | Size    | Description                                    |
-| ---------------------- | ------- | ---------------------------------------------- |
-| The Forgotten Catacombs | 80×48  | Hand-curated dungeon with 25 preset rooms       |
-| Grand Realm of Aethra  | 120×80  | A sprawling 3-layer realm with mountains, lake, river, lava fissure, volcano, forest, village, walled city, park, and dungeon |
+| Map                     | Size   | Description                                                                                                                   |
+| ----------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| The Forgotten Catacombs | 80×48  | Hand-curated dungeon with 25 preset rooms                                                                                     |
+| Grand Realm of Aethra   | 120×80 | A sprawling 3-layer realm with mountains, lake, river, lava fissure, volcano, forest, village, walled city, park, and dungeon |
+
+---
+
+## Gallery
+
+<p align="center">
+  <img src="media/aethra-mega-hd-compressed.png" alt="Grand Realm of Aethra — mega HD render" width="720">
+</p>
+<p align="center"><em>Grand Realm of Aethra</em></p>
+
+<p align="center">
+  <img src="media/badlands-wadi-hd-compressed.png" alt="Badlands Wadi — HD render" width="720">
+</p>
+<p align="center"><em>Badlands Wadi</em></p>
+
+<p align="center">
+  <img src="media/dragon_island.png" alt="Dragon Archipelago — HD render" width="720">
+</p>
+<p align="center"><em>Dragon Archipelago — traced from reference</em></p>
+
+### Show Off Your Maps
+
+Built a dungeon, town, or wilderness you're proud of? Contributions are welcome — landscapes, themed vignettes, and unusual palettes are all fair game.
+
+1. Render it via `/api/render` (SVG from Cloudflare, PNG from a Node server) or export straight from the editor.
+2. Drop the image under `media/` (compress large renders — aim for under ~2 MB).
+3. Open a PR adding it to the `## Gallery` section above with a one-line caption.
+
+See [`AGENTS.md`](AGENTS.md) for repo conventions and the PR workflow.
 
 ---
 

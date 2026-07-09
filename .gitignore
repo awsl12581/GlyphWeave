@@ -26,5 +26,15 @@ dist-ssr
 # env file
 .env*
 
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
+.next/
+
 # omx
 .omx/
+
+# Bevy / Rust build artifacts
+bevy/target/

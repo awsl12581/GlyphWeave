@@ -1,0 +1,7 @@
+# pre-commit.ci is enabled for this repository. Keep a valid config so the
+# GitHub check does not fail before the project's pnpm checks run locally.
+ci:
+  autofix_prs: false
+  autoupdate_schedule: quarterly
+
+repos: []

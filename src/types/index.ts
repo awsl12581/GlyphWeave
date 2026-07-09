@@ -38,6 +38,7 @@ export interface WorldConfig {
   initialTiles?: Record<string, string | null>
   initialLayerTiles?: Record<string, Record<string, string | null>>
   initialLayers?: Layer[]
+  initialTheme?: Theme
 }
 
 export interface Layer {

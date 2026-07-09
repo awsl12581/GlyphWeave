@@ -11,6 +11,7 @@
 <p align="center">
   <a href="https://github.com/HsiangNianian/GlyphWeave"><img src="https://img.shields.io/github/stars/HsiangNianian/GlyphWeave?logo=github" alt="GitHub stars"></a>
   <a href="https://github.com/HsiangNianian/GlyphWeave/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-65a30d?style=flat" alt="MIT license"></a>
+  <a href="https://glyphweave.hydroroll.team"><img src="https://img.shields.io/badge/demo-glyphweave.hydroroll.team-000?style=flat&logo=cloudflare" alt="Demo"></a>
   <br>
   <img src="https://img.shields.io/badge/React_19-000?style=flat&logo=react" alt="React 19">
   <img src="https://img.shields.io/badge/Konva-000?style=flat&logo=canvas" alt="Konva">
@@ -47,7 +48,7 @@
 - **エクスポート / インポート** `.gemap` JSON 形式 — レイヤー、テーマ、ワールド名を保持。
 - **ミニマップ** — ビューポート矩形付きのリアルタイム概要。クリックでジャンプ。
 - **視距離** — スムーズなパンのための設定可能なレンダリング余白。
-- **レンダリングAPI** — `GET /render` または `POST /render` で地図をPNG画像に変換。
+- **レンダリングAPI** — `GET /api/render` または `POST /api/render` で地図をSVGまたはPNG画像に変換。
 - **キーボードショートカット** — `B` ブラシ、`E` 消しゴム、`F` 塗りつぶし、`P` パン、`S` 選択、`G` グリッド切替。
 - **デモマップ** — 「忘れられしカタコンベ」または「グランドレルム・オブ・エイスラ」を探索。
 
@@ -68,22 +69,28 @@ pnpm dev
 
 `http://localhost:5173` を開き、ワールド名、タイルサイズ、テーマを選択して描き始めましょう。
 
-> **レンダリングAPI** は開発モードで自動的に同一ポートで利用可能です——`GET /render?data=<base64>` または `POST /render`（JSON body）。詳細は[サーバードキュメント](server/index.mjs)を参照。
-
+> **レンダリングAPI** は開発モードで自動的に同一ポートで利用可能です——`GET /api/render?data=<base64>` または `POST /api/render`（JSON body）。
 
 ## Render API
 
-GlyphWeave には、タイルマップを PNG 画像に変換するスタンドアロンのレンダリングサーバーが付属しています。
+タイルマップを画像に変換するAPIです。3つの動作環境に対応しています：
 
-```bash
-# レンダリングサーバーを起動（開発モードでは自動統合済み）
-pnpm render-server
-```
+| 環境 | コマンド | URL | 出力 |
+|---|---|---|---|
+| 開発 | `pnpm dev` | `http://localhost:5173/api/render` | PNG (`@napi-rs/canvas`) |
+| 本番 (Node) | `pnpm build && pnpm start` | `http://localhost:3001/api/render` | PNG (`@napi-rs/canvas`) |
+| 本番 (Cloudflare) | `pnpm deploy` | `https://glyphweave.hydroroll.team/api/render` | SVG（デフォルト）または PNG（`?format=png`） |
 
 ### POST（大きなマップに推奨）
 
 ```bash
-curl -X POST http://localhost:3001/render \
+# SVG出力（デフォルト）
+curl -X POST https://glyphweave.hydroroll.team/api/render \
+  -H "Content-Type: application/json" \
+  -d @my-map.gemap > map.svg
+
+# PNG出力
+curl -X POST "https://glyphweave.hydroroll.team/api/render?format=png" \
   -H "Content-Type: application/json" \
   -d @my-map.gemap > map.png
 ```
@@ -92,22 +99,64 @@ curl -X POST http://localhost:3001/render \
 
 ```bash
 DATA=$(echo -n '{"tiles":{"0,0":"wall"}}' | base64)
-curl "http://localhost:3001/render?data=$DATA" > map.png
+curl "https://glyphweave.hydroroll.team/api/render?data=$DATA&format=png" > map.png
 ```
 
 パラメータ：
+
 - `theme` — `ansi-16`（デフォルト）または `cogmind`
 - `padding` — 境界外の余分タイル数（デフォルト `1`）
 - `scale` — タイルあたりのピクセル数（デフォルトは自動フィット ≤ 4096px）
+- `format` — `svg`（デフォルト）または `png`（Cloudflare）
+
+### セルフホスト
+
+```bash
+pnpm dev                           # 開発サーバー, http://localhost:5173
+pnpm build && pnpm start           # 本番サーバー, http://localhost:3001
+
+curl -X POST http://localhost:3001/api/render \
+  -H "Content-Type: application/json" \
+  -d @my-map.gemap > map.png
+```
 
 ---
 
 ## デモマップ
 
-| マップ                   | サイズ   | 説明                                           |
-| ------------------------ | -------- | ---------------------------------------------- |
-| 忘れられしカタコンベ     | 80×48    | 25のプリセットルームで構成された厳選ダンジョン   |
+| マップ                         | サイズ | 説明                                                                                          |
+| ------------------------------ | ------ | --------------------------------------------------------------------------------------------- |
+| 忘れられしカタコンベ           | 80×48  | 25のプリセットルームで構成された厳選ダンジョン                                                |
 | グランドレルム・オブ・エイスラ | 120×80 | 山脈、湖、川、溶岩割れ目、火山、森、村、城塞都市、公園、ダンジョンに及ぶ3レイヤーの広大な世界 |
+
+---
+
+## ギャラリー
+
+<p align="center">
+  <img src="media/aethra-mega-hd-compressed.png" alt="グランドレルム・オブ・エイスラ — mega HD レンダリング" width="720">
+</p>
+<p align="center"><em>グランドレルム・オブ・エイスラ</em></p>
+
+<p align="center">
+  <img src="media/badlands-wadi-hd-compressed.png" alt="Badlands Wadi — HD レンダリング" width="720">
+</p>
+<p align="center"><em>Badlands Wadi</em></p>
+
+<p align="center">
+  <img src="media/dragon_island.png" alt="Dragon Archipelago — HD レンダリング" width="720">
+</p>
+<p align="center"><em>Dragon Archipelago — 参考図からトレース</em></p>
+
+### マップを自慢しよう
+
+ダンジョン、町、荒野をデザインしたなら、ギャラリーへの投稿を歓迎します。風景マップ、テーマ別ビネット、奇妙なパレットも大歓迎。
+
+1. `/api/render`（Cloudflare は SVG、Node サーバーは PNG）でレンダリングするか、エディタから直接エクスポート。
+2. 画像を `media/` に配置（大きいものは圧縮して 2 MB 未満を目安に）。
+3. PR を開き、上の `## ギャラリー` セクションに 1 行のキャプションを追加。
+
+リポジトリの慣習と PR の流れは [`AGENTS.md`](AGENTS.md) を参照してください。
 
 ---
 
