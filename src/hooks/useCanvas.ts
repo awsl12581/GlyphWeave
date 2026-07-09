@@ -2,14 +2,22 @@ import { useRef, useCallback, type MutableRefObject } from 'react'
 import Konva from 'konva'
 import { useMapStore } from '@/stores/map-store'
 import { useUiStore } from '@/stores/ui-store'
+import { formatTileKey } from '@/lib/map-core'
+import {
+  createTilePatch,
+  mergeStrokeTransaction,
+  type TileTransaction,
+} from '@/lib/tile-history'
+import { panViewport, pointerToTile as viewportPointerToTile, zoomAtPoint } from '@/lib/viewport'
 
-export function useCanvas(stageRef: MutableRefObject<Konva.Stage | null>, onViewChange?: () => void) {
+export function useCanvas(stageRef: MutableRefObject<Konva.Stage | null>) {
   const isPanning = useRef(false)
   const lastMousePos = useRef({ x: 0, y: 0 })
   const isDrawing = useRef(false)
   const lastDrawnTile = useRef<string | null>(null)
+  const strokeLayerId = useRef<string | null>(null)
+  const strokeTransaction = useRef<TileTransaction>({ patches: [] })
 
-  const setTile = useMapStore((s) => s.setTile)
   const currentTool = useMapStore((s) => s.currentTool)
   const activeTileType = useMapStore((s) => s.activeTileType)
   const activePreset = useMapStore((s) => s.activePreset)
@@ -18,16 +26,49 @@ export function useCanvas(stageRef: MutableRefObject<Konva.Stage | null>, onView
   const tileSize = useMapStore((s) => s.tileSize)
   const activeLayerLocked = useMapStore((s) => s.activeLayerLocked)
 
+  const resetStroke = useCallback((): void => {
+    isDrawing.current = false
+    lastDrawnTile.current = null
+    strokeLayerId.current = null
+    strokeTransaction.current = { patches: [] }
+  }, [])
+
+  const recordStrokeTile = useCallback((x: number, y: number, tileTypeId: string | null): void => {
+    const state = useMapStore.getState()
+    const layerId = strokeLayerId.current ?? state.layers[state.activeLayer]?.id
+    if (!layerId) return
+
+    strokeLayerId.current = layerId
+    const key = formatTileKey(x, y)
+    strokeTransaction.current = mergeStrokeTransaction(
+      strokeTransaction.current,
+      createTilePatch({
+        layerId,
+        key,
+        before: state.tiles[layerId]?.[key],
+        after: tileTypeId,
+      }),
+    )
+    state.setTilePreview(layerId, x, y, tileTypeId)
+  }, [])
+
+  const finishStroke = useCallback((): void => {
+    if (!isDrawing.current) return
+
+    const transaction = strokeTransaction.current
+    if (transaction.patches.length > 0) {
+      useMapStore.getState().commitTilePreview(transaction)
+    }
+    resetStroke()
+  }, [resetStroke])
+
   const pointerToTile = useCallback((pointer: { x: number; y: number }): [number, number] => {
     const stage = stageRef.current
     if (!stage) return [0, 0]
     const pos = stage.position()
-    const scale = stage.scaleX()
-    return [
-      Math.floor((pointer.x - pos.x) / scale / tileSize),
-      Math.floor((pointer.y - pos.y) / scale / tileSize),
-    ]
-  }, [tileSize])
+    const [x, y] = viewportPointerToTile(pointer, { x: pos.x, y: pos.y, scale: stage.scaleX() }, tileSize)
+    return [x, y]
+  }, [stageRef, tileSize])
 
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault()
@@ -38,21 +79,13 @@ export function useCanvas(stageRef: MutableRefObject<Konva.Stage | null>, onView
 
     const direction = e.evt.deltaY > 0 ? -1 : 1
     const factor = Math.pow(1.12, direction)
-    const zoomScale = useUiStore.getState().zoomScale
-    const clampedScale = Math.max(0.0625, Math.min(16, zoomScale * factor))
-
-    const mousePointTo = {
-      x: (pointer.x - stage.x()) / zoomScale,
-      y: (pointer.y - stage.y()) / zoomScale,
-    }
-    stage.position({
-      x: pointer.x - mousePointTo.x * clampedScale,
-      y: pointer.y - mousePointTo.y * clampedScale,
-    })
-    stage.scale({ x: clampedScale, y: clampedScale })
+    const currentViewport = { x: stage.x(), y: stage.y(), scale: stage.scaleX() }
+    const nextViewport = zoomAtPoint(currentViewport, pointer, currentViewport.scale * factor)
+    stage.position({ x: nextViewport.x, y: nextViewport.y })
+    stage.scale({ x: nextViewport.scale, y: nextViewport.scale })
     stage.batchDraw()
-    useUiStore.getState().setZoomScale(clampedScale)
-  }, [])
+    useUiStore.getState().setViewport(nextViewport)
+  }, [stageRef])
 
   const handleMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     const evt = e.evt
@@ -93,11 +126,14 @@ export function useCanvas(stageRef: MutableRefObject<Konva.Stage | null>, onView
 
     if (currentTool === 'brush' || currentTool === 'erase') {
       isDrawing.current = true
+      strokeTransaction.current = { patches: [] }
+      const state = useMapStore.getState()
+      strokeLayerId.current = state.layers[state.activeLayer]?.id ?? null
       const tileId = currentTool === 'erase' ? null : activeTileType
-      setTile(tx, ty, tileId)
-      lastDrawnTile.current = `${tx},${ty}`
+      recordStrokeTile(tx, ty, tileId)
+      lastDrawnTile.current = formatTileKey(tx, ty)
     }
-  }, [pointerToTile, currentTool, activeTileType, activePreset, placePreset, floodFill, setTile])
+  }, [activeLayerLocked, activePreset, activeTileType, currentTool, floodFill, placePreset, pointerToTile, recordStrokeTile, stageRef])
 
   const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     const evt = e.evt
@@ -108,10 +144,11 @@ export function useCanvas(stageRef: MutableRefObject<Konva.Stage | null>, onView
       const dx = evt.clientX - lastMousePos.current.x
       const dy = evt.clientY - lastMousePos.current.y
       const pos = stage.position()
-      stage.position({ x: pos.x + dx, y: pos.y + dy })
+      const nextViewport = panViewport({ x: pos.x, y: pos.y, scale: stage.scaleX() }, { x: dx, y: dy })
+      stage.position({ x: nextViewport.x, y: nextViewport.y })
       lastMousePos.current = { x: evt.clientX, y: evt.clientY }
       stage.batchDraw()
-      onViewChange?.()
+      useUiStore.getState().setViewport(nextViewport)
       return
     }
 
@@ -126,25 +163,23 @@ export function useCanvas(stageRef: MutableRefObject<Konva.Stage | null>, onView
     if (tileKey === lastDrawnTile.current) return
 
     const tileId = currentTool === 'erase' ? null : activeTileType
-    setTile(tx, ty, tileId)
+    recordStrokeTile(tx, ty, tileId)
     lastDrawnTile.current = tileKey
-  }, [pointerToTile, currentTool, activeTileType, setTile])
+  }, [activeLayerLocked, activeTileType, currentTool, pointerToTile, recordStrokeTile, stageRef])
 
   const handleMouseUp = useCallback(() => {
     isPanning.current = false
-    isDrawing.current = false
-    lastDrawnTile.current = null
+    finishStroke()
     const stage = stageRef.current
     if (stage) {
       stage.container().style.cursor = currentTool === 'pan' ? 'grab' : 'crosshair'
     }
-  }, [currentTool])
+  }, [currentTool, finishStroke, stageRef])
 
   const handleMouseLeave = useCallback(() => {
     isPanning.current = false
-    isDrawing.current = false
-    lastDrawnTile.current = null
-  }, [])
+    finishStroke()
+  }, [finishStroke])
 
   return {
     stageRef,

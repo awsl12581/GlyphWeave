@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Download, PanelRightClose, PanelRightOpen, Settings, Plus, Minus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { zoomAtPoint } from '@/lib/viewport'
 
 interface EditorPageProps {
   worldConfig: WorldConfig
@@ -35,29 +36,16 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
   const zoomIn = useUiStore((s) => s.zoomIn)
   const zoomOut = useUiStore((s) => s.zoomOut)
   const resetZoom = useUiStore((s) => s.resetZoom)
+  const setViewport = useUiStore((s) => s.setViewport)
 
   const canvasRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<Konva.Stage | null>(null)
   useKeyboard()
 
-  // Resizable side panel
   const [panelWidth, setPanelWidth] = useState(320)
   const draggingRef = useRef(false)
   const pendingWidthRef = useRef(320)
   const rafRef = useRef(0)
-
-  // View change tracking for visible-range recalculation (pan / minimap drag)
-  const [viewVersion, setViewVersion] = useState(0)
-  const viewVersionRef = useRef(0)
-  const viewRafRef = useRef(0)
-  const onViewChange = useCallback(() => {
-    if (viewRafRef.current) return
-    viewRafRef.current = requestAnimationFrame(() => {
-      viewRafRef.current = 0
-      viewVersionRef.current += 1
-      setViewVersion(viewVersionRef.current)
-    })
-  }, [])
 
   const handleDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -91,7 +79,6 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
     }
   }, [])
 
-  // Sync zoomScale changes to the Konva Stage when triggered from buttons/keyboard
   const prevZoomScale = useRef(zoomScale)
   useEffect(() => {
     const stage = stageRef.current
@@ -100,24 +87,21 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
     if (oldScale === zoomScale) return
     prevZoomScale.current = zoomScale
 
-    // Skip if the wheel handler already applied this scale
     const currentStageScale = stage.scaleX()
     if (Math.abs(currentStageScale - zoomScale) < 0.001) return
 
-    // Zoom from viewport center
     const cx = stage.width() / 2
     const cy = stage.height() / 2
-    const mousePointTo = {
-      x: (cx - stage.x()) / currentStageScale,
-      y: (cy - stage.y()) / currentStageScale,
-    }
-    stage.position({
-      x: cx - mousePointTo.x * zoomScale,
-      y: cy - mousePointTo.y * zoomScale,
-    })
+    const nextViewport = zoomAtPoint(
+      { x: stage.x(), y: stage.y(), scale: currentStageScale },
+      { x: cx, y: cy },
+      zoomScale,
+    )
+    stage.position({ x: nextViewport.x, y: nextViewport.y })
     stage.scale({ x: zoomScale, y: zoomScale })
     stage.batchDraw()
-  }, [zoomScale])
+    setViewport(nextViewport)
+  }, [setViewport, zoomScale])
 
   useEffect(() => {
     initWorld(worldConfig)
@@ -128,7 +112,7 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
       <Toolbar />
 
       <div ref={canvasRef} className="flex-1 relative overflow-hidden">
-        <MapCanvas containerRef={canvasRef} stageRef={stageRef} viewVersion={viewVersion} onViewChange={onViewChange} />
+        <MapCanvas containerRef={canvasRef} stageRef={stageRef} />
 
         <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none">
           <div className="flex items-center gap-2 pointer-events-auto">
@@ -145,11 +129,10 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
 
         {showMinimap && (
           <div className="absolute top-3 right-3 pointer-events-none">
-            <Minimap stageRef={stageRef} onViewChange={onViewChange} />
+            <Minimap stageRef={stageRef} />
           </div>
         )}
 
-        {/* ── Zoom Pyramid Controls ── */}
         <div className="absolute bottom-3 left-3 pointer-events-none z-10">
           <div className="pointer-events-auto flex items-center gap-1 bg-black/70 backdrop-blur-sm border border-zinc-800 rounded-md px-1.5 py-1">
             <Button
@@ -196,7 +179,6 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
 
       {sidePanelOpen && (
         <div className="flex shrink-0">
-          {/* Drag handle */}
           <div
             className="w-1.5 cursor-ew-resize hover:bg-zinc-600 active:bg-zinc-500 shrink-0 transition-colors"
             onMouseDown={handleDragStart}
@@ -205,35 +187,35 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
             className="bg-zinc-950 border-l border-zinc-800 flex flex-col overflow-hidden shrink-0"
             style={{ width: panelWidth }}
           >
-          <Tabs value={sidePanelTab} onValueChange={setSidePanelTab} className="flex flex-col h-full">
-            <TabsList className="bg-zinc-900 border-b border-zinc-800 rounded-none px-1 h-9 justify-start gap-0 overflow-x-auto flex-nowrap">
-              <TabsTrigger value="tiles" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">{t('editor.tiles')}</TabsTrigger>
-              <TabsTrigger value="presets" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">{t('editor.presets')}</TabsTrigger>
-              <TabsTrigger value="layers" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">{t('editor.layers')}</TabsTrigger>
-              <TabsTrigger value="export" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">
-                <Download className="w-3.5 h-3.5" />
-              </TabsTrigger>
-              <TabsTrigger value="settings" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0 flex items-center gap-1">
-                <Settings className="w-3.5 h-3.5" />
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="tiles" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col">
-              <TilePalette />
-            </TabsContent>
-            <TabsContent value="presets" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col">
-              <PresetsPanel />
-            </TabsContent>
-            <TabsContent value="layers" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col">
-              <LayersPanel />
-            </TabsContent>
-            <TabsContent value="export" className="mt-0 data-[state=inactive]:hidden">
-              <ExportPanel />
-            </TabsContent>
-            <TabsContent value="settings" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col">
-              <SettingsPanel />
-            </TabsContent>
-          </Tabs>
-        </div>
+            <Tabs value={sidePanelTab} onValueChange={setSidePanelTab} className="flex flex-col h-full">
+              <TabsList className="bg-zinc-900 border-b border-zinc-800 rounded-none px-1 h-9 justify-start gap-0 overflow-x-auto flex-nowrap">
+                <TabsTrigger value="tiles" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">{t('editor.tiles')}</TabsTrigger>
+                <TabsTrigger value="presets" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">{t('editor.presets')}</TabsTrigger>
+                <TabsTrigger value="layers" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">{t('editor.layers')}</TabsTrigger>
+                <TabsTrigger value="export" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">
+                  <Download className="w-3.5 h-3.5" />
+                </TabsTrigger>
+                <TabsTrigger value="settings" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0 flex items-center gap-1">
+                  <Settings className="w-3.5 h-3.5" />
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="tiles" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col">
+                <TilePalette />
+              </TabsContent>
+              <TabsContent value="presets" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col">
+                <PresetsPanel />
+              </TabsContent>
+              <TabsContent value="layers" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col">
+                <LayersPanel />
+              </TabsContent>
+              <TabsContent value="export" className="mt-0 data-[state=inactive]:hidden">
+                <ExportPanel />
+              </TabsContent>
+              <TabsContent value="settings" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col">
+                <SettingsPanel />
+              </TabsContent>
+            </Tabs>
+          </div>
         </div>
       )}
     </div>

@@ -1,16 +1,16 @@
 'use client'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMapStore } from '@/stores/map-store'
 import { PRESETS, PRESET_CATEGORIES } from '@/constants/presets'
 import { TILE_TYPES } from '@/constants/tiles'
-import { THEMES } from '@/constants/themes'
+import { resolveTheme, type ThemeRegistry } from '@/lib/theme-registry'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { useTranslation } from 'react-i18next'
 import type { Preset } from '@/types'
 
-function PresetPreview({ preset, themeId }: { preset: Preset; themeId: string }) {
-  const theme = THEMES[themeId]
+function PresetPreview({ preset, themeId, customThemes }: { preset: Preset; themeId: string; customThemes: ThemeRegistry }) {
+  const theme = resolveTheme(themeId, customThemes)
   const cellSize = 10
   return (
     <div
@@ -52,6 +52,7 @@ export function PresetsPanel() {
   const setActivePreset = useMapStore((s) => s.setActivePreset)
   const setActiveTileType = useMapStore((s) => s.setActiveTileType)
   const themeId = useMapStore((s) => s.themeId)
+  const customThemes = useMapStore((s) => s.customThemes)
 
   const filtered = PRESETS.filter((p) => p.category === activeCategory)
 
@@ -91,7 +92,7 @@ export function PresetsPanel() {
                 onClick={() => handleSelect(preset)}
               >
                 <div className="flex justify-center mb-1">
-                  <PresetPreview preset={preset} themeId={themeId} />
+                  <PresetPreview preset={preset} themeId={themeId} customThemes={customThemes} />
                 </div>
                 <p className="text-[11px] font-medium text-zinc-300 text-center truncate">
                   {preset.name}

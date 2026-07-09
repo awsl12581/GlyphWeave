@@ -1,54 +1,58 @@
-import { useEffect, useState, useMemo, type RefObject, type MutableRefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type MutableRefObject } from 'react'
 import { Stage, Layer, Rect, Line } from 'react-konva'
 import Konva from 'konva'
-import { TileCell } from './TileCell'
+import { TileBatchLayer } from './TileBatchLayer'
 import { useCanvas } from '@/hooks/useCanvas'
 import { useMapStore } from '@/stores/map-store'
 import { useUiStore } from '@/stores/ui-store'
-import { THEMES } from '@/constants/themes'
-
-function getVisibleRange(stage: Konva.Stage | null, tileSize: number, w: number, h: number, padding: number) {
-  if (!stage) return { minX: -10, minY: -10, maxX: 10, maxY: 10 }
-  const pos = stage.position()
-  const s = stage.scaleX()
-  const wx = -pos.x / s
-  const wy = -pos.y / s
-  const ww = w / s
-  const wh = h / s
-  const rawMinX = Math.floor(wx / tileSize)
-  const rawMinY = Math.floor(wy / tileSize)
-  const rawMaxX = Math.ceil((wx + ww) / tileSize)
-  const rawMaxY = Math.ceil((wy + wh) / tileSize)
-  // 50% buffer beyond viewport edges so panning doesn't immediately unload tiles
-  const bufX = Math.max(Math.ceil((rawMaxX - rawMinX) * 0.5), 0)
-  const bufY = Math.max(Math.ceil((rawMaxY - rawMinY) * 0.5), 0)
-  return {
-    minX: rawMinX - padding - bufX,
-    minY: rawMinY - padding - bufY,
-    maxX: rawMaxX + padding + bufX,
-    maxY: rawMaxY + padding + bufY,
-  }
-}
+import { getVisibleRange, type Viewport, type VisibleRange } from '@/lib/viewport'
+import { DEFAULT_TILE_CHUNK_SIZE, buildVisibleTileChunkIndex, iterateVisibleTileChunks } from '@/lib/map-core'
+import { resolveTheme } from '@/lib/theme-registry'
 
 interface MapCanvasProps {
   containerRef: RefObject<HTMLDivElement | null>
   stageRef: MutableRefObject<Konva.Stage | null>
-  viewVersion: number
-  onViewChange: () => void
 }
 
-export function MapCanvas({ containerRef, stageRef, viewVersion, onViewChange }: MapCanvasProps) {
+function visibleRangeEquals(a: VisibleRange, b: VisibleRange): boolean {
+  return a.minX === b.minX && a.minY === b.minY && a.maxX === b.maxX && a.maxY === b.maxY
+}
+
+function alignVisibleRangeToChunks(
+  range: VisibleRange,
+  chunkSize = DEFAULT_TILE_CHUNK_SIZE,
+): VisibleRange {
+  const minChunkX = Math.floor(range.minX / chunkSize)
+  const minChunkY = Math.floor(range.minY / chunkSize)
+  const maxChunkX = Math.floor(range.maxX / chunkSize)
+  const maxChunkY = Math.floor(range.maxY / chunkSize)
+
+  return {
+    minX: minChunkX * chunkSize,
+    minY: minChunkY * chunkSize,
+    maxX: (maxChunkX + 1) * chunkSize - 1,
+    maxY: (maxChunkY + 1) * chunkSize - 1,
+  }
+}
+
+export function MapCanvas({ containerRef, stageRef }: MapCanvasProps) {
   const tiles = useMapStore((s) => s.tiles)
   const layers = useMapStore((s) => s.layers)
   const showGrid = useUiStore((s) => s.showGrid)
   const viewDistance = useUiStore((s) => s.viewDistance)
   const currentTool = useMapStore((s) => s.currentTool)
   const themeId = useMapStore((s) => s.themeId)
-  const theme = THEMES[themeId]
-  const zoomScale = useUiStore((s) => s.zoomScale)
-  const { tileSize, handleWheel, handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave } = useCanvas(stageRef, onViewChange)
+  const customThemes = useMapStore((s) => s.customThemes)
+  const theme = resolveTheme(themeId, customThemes)
+  const { tileSize, handleWheel, handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave } = useCanvas(stageRef)
 
   const [size, setSize] = useState({ width: 800, height: 600 })
+  const [visibleRange, setVisibleRange] = useState(() =>
+    alignVisibleRangeToChunks(
+      getVisibleRange(useUiStore.getState().viewport, { width: 800, height: 600 }, tileSize, viewDistance),
+    ),
+  )
+  const visibleRangeRef = useRef(visibleRange)
 
   useEffect(() => {
     const el = containerRef.current
@@ -62,29 +66,38 @@ export function MapCanvas({ containerRef, stageRef, viewVersion, onViewChange }:
     return () => ro.disconnect()
   }, [containerRef])
 
-  const visibleRange = useMemo(
-    () => getVisibleRange(stageRef.current, tileSize, size.width, size.height, viewDistance),
-    [size, tileSize, tiles, viewDistance, zoomScale, viewVersion],
-  )
+  const updateVisibleRange = useCallback((viewport: Viewport): void => {
+    const nextRange = alignVisibleRangeToChunks(
+      getVisibleRange(
+        viewport,
+        { width: size.width, height: size.height },
+        tileSize,
+        viewDistance,
+      ),
+    )
+    if (visibleRangeEquals(visibleRangeRef.current, nextRange)) return
+
+    visibleRangeRef.current = nextRange
+    setVisibleRange(nextRange)
+  }, [size.height, size.width, tileSize, viewDistance])
+
+  useEffect(() => {
+    updateVisibleRange(useUiStore.getState().viewport)
+  }, [updateVisibleRange])
+
+  useEffect(() => {
+    return useUiStore.subscribe((state) => {
+      updateVisibleRange(state.viewport)
+    })
+  }, [updateVisibleRange])
+
+  const visibleTileIndex = useMemo(() => {
+    return buildVisibleTileChunkIndex(tiles, layers)
+  }, [tiles, layers])
 
   const visibleTiles = useMemo(() => {
-    const result: Array<{ key: string; gridX: number; gridY: number; tileTypeId: string }> = []
-    for (const layer of layers) {
-      if (!layer.visible) continue
-      const layerTiles = tiles[layer.id]
-      if (!layerTiles) continue
-      for (const [key, tileTypeId] of Object.entries(layerTiles)) {
-        if (!tileTypeId) continue
-        const [sx, sy] = key.split(',')
-        const x = parseInt(sx, 10)
-        const y = parseInt(sy, 10)
-        if (x >= visibleRange.minX && x <= visibleRange.maxX && y >= visibleRange.minY && y <= visibleRange.maxY) {
-          result.push({ key: `${layer.id}:${key}`, gridX: x, gridY: y, tileTypeId })
-        }
-      }
-    }
-    return result
-  }, [tiles, layers, visibleRange])
+    return [...iterateVisibleTileChunks(visibleTileIndex, { range: visibleRange })]
+  }, [visibleTileIndex, visibleRange])
 
   const gridLineElements = useMemo(() => {
     if (!showGrid) return null
@@ -122,16 +135,11 @@ export function MapCanvas({ containerRef, stageRef, viewVersion, onViewChange }:
     >
       <Layer>
         <Rect x={-50000} y={-50000} width={100000} height={100000} fill="#000" listening={false} />
-        {visibleTiles.map(({ key, gridX, gridY, tileTypeId }) => (
-          <TileCell
-            key={key}
-            x={gridX}
-            y={gridY}
-            tileTypeId={tileTypeId}
-            tileSize={tileSize}
-            colors={theme.colors[tileTypeId] || { fgColor: '#fff', bgColor: '#000' }}
-          />
-        ))}
+        <TileBatchLayer
+          tiles={visibleTiles}
+          tileSize={tileSize}
+          colorsByTileId={theme.colors}
+        />
         {gridLineElements}
       </Layer>
     </Stage>
