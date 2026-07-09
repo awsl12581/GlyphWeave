@@ -152,5 +152,11 @@
     "cage": "Cage",
     "blood": "Blood",
     "bar": "Bar"
+  },
+  "chat": {
+    "title": "Assistant",
+    "empty": "Ask me anything about your map.",
+    "inputPlaceholder": "Type a message…",
+    "placeholder": "This is a placeholder response. Chat integration coming soon."
   }
 }
