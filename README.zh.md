@@ -158,6 +158,11 @@ curl -X POST http://localhost:3001/api/render \
 </p>
 <p align="center"><em>Badlands Wadi</em></p>
 
+<p align="center">
+  <img src="media/dragon_island.png" alt="Dragon Archipelago — HD 渲染" width="720">
+</p>
+<p align="center"><em>Dragon Archipelago — 参考图描摹</em></p>
+
 ### 展示你的地图
 
 精心构筑了地牢、城镇或荒野？欢迎向画廊投稿 —— 风景图、主题小景、奇特色板都欢迎。

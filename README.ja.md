@@ -143,6 +143,11 @@ curl -X POST http://localhost:3001/api/render \
 </p>
 <p align="center"><em>Badlands Wadi</em></p>
 
+<p align="center">
+  <img src="media/dragon_island.png" alt="Dragon Archipelago — HD レンダリング" width="720">
+</p>
+<p align="center"><em>Dragon Archipelago — 参考図からトレース</em></p>
+
 ### マップを自慢しよう
 
 ダンジョン、町、荒野をデザインしたなら、ギャラリーへの投稿を歓迎します。風景マップ、テーマ別ビネット、奇妙なパレットも大歓迎。
