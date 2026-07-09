@@ -4,7 +4,6 @@ import { useMapStore } from '@/stores/map-store'
 import { PRESETS, PRESET_CATEGORIES } from '@/constants/presets'
 import { TILE_TYPES } from '@/constants/tiles'
 import { THEMES } from '@/constants/themes'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
@@ -76,40 +75,42 @@ export function PresetsPanel() {
           </Button>
         ))}
       </div>
-      <ScrollArea className="flex-1 px-2 py-2">
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,96px))] gap-2">
-          {filtered.map((preset) => (
-            <Card
-              key={preset.id}
-              className={`
-                p-2 cursor-pointer transition-colors
-                ${activePreset?.id === preset.id
-                  ? 'bg-zinc-700 border-zinc-400'
-                  : 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800'
-                }
-              `}
-              onClick={() => handleSelect(preset)}
-            >
-              <div className="flex justify-center mb-1">
-                <PresetPreview preset={preset} themeId={themeId} />
-              </div>
-              <p className="text-[11px] font-medium text-zinc-300 text-center truncate">
-                {preset.name}
-              </p>
-              <p className="text-[9px] text-zinc-500 text-center leading-tight">
-                {preset.description}
-              </p>
-            </Card>
-          ))}
-        </div>
-        {activePreset && (
-          <div className="mt-3 p-2 rounded bg-zinc-800/50 border border-zinc-700">
-            <p className="text-xs text-zinc-400 text-center">
-              {t('presets.placeHint', { name: activePreset.name })}
-            </p>
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-custom">
+        <div className="px-2 py-2">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,96px))] gap-2">
+            {filtered.map((preset) => (
+              <Card
+                key={preset.id}
+                className={`
+                  p-2 cursor-pointer transition-colors
+                  ${activePreset?.id === preset.id
+                    ? 'bg-zinc-700 border-zinc-400'
+                    : 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800'
+                  }
+                `}
+                onClick={() => handleSelect(preset)}
+              >
+                <div className="flex justify-center mb-1">
+                  <PresetPreview preset={preset} themeId={themeId} />
+                </div>
+                <p className="text-[11px] font-medium text-zinc-300 text-center truncate">
+                  {preset.name}
+                </p>
+                <p className="text-[9px] text-zinc-500 text-center leading-tight">
+                  {preset.description}
+                </p>
+              </Card>
+            ))}
           </div>
-        )}
-      </ScrollArea>
+          {activePreset && (
+            <div className="mt-3 p-2 rounded bg-zinc-800/50 border border-zinc-700">
+              <p className="text-xs text-zinc-400 text-center">
+                {t('presets.placeHint', { name: activePreset.name })}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

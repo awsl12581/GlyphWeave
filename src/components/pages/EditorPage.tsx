@@ -217,19 +217,19 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
                 <Settings className="w-3.5 h-3.5" />
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="tiles" className="flex-1 mt-0 data-[state=inactive]:hidden flex flex-col">
+            <TabsContent value="tiles" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col">
               <TilePalette />
             </TabsContent>
-            <TabsContent value="presets" className="flex-1 mt-0 data-[state=inactive]:hidden flex flex-col">
+            <TabsContent value="presets" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col">
               <PresetsPanel />
             </TabsContent>
-            <TabsContent value="layers" className="flex-1 mt-0 data-[state=inactive]:hidden flex flex-col">
+            <TabsContent value="layers" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col">
               <LayersPanel />
             </TabsContent>
             <TabsContent value="export" className="mt-0 data-[state=inactive]:hidden">
               <ExportPanel />
             </TabsContent>
-            <TabsContent value="settings" className="flex-1 mt-0 data-[state=inactive]:hidden flex flex-col">
+            <TabsContent value="settings" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col">
               <SettingsPanel />
             </TabsContent>
           </Tabs>

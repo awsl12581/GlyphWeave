@@ -1,6 +1,5 @@
 'use client'
 import { useMapStore } from '@/stores/map-store'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { Plus, Eye, EyeOff, Lock, Unlock, Trash2 } from 'lucide-react'
@@ -29,8 +28,8 @@ export function LayersPanel() {
           <Plus className="w-3.5 h-3.5" />
         </Button>
       </div>
-      <ScrollArea className="flex-1 px-2 py-2">
-        <div className="space-y-1">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-custom">
+        <div className="px-2 py-2 space-y-1">
           {layers.map((layer, i) => (
             <div
               key={layer.id}
@@ -73,7 +72,7 @@ export function LayersPanel() {
             </div>
           ))}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   )
 }

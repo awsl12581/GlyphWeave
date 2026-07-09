@@ -2,7 +2,6 @@
 import { useMapStore } from '@/stores/map-store'
 import { TILE_TYPE_LIST, TILE_CATEGORIES } from '@/constants/tiles'
 import { THEMES } from '@/constants/themes'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useTranslation } from 'react-i18next'
 
 export function TilePalette() {
@@ -25,8 +24,8 @@ export function TilePalette() {
   }
 
   return (
-    <ScrollArea className="flex-1 px-2 py-2">
-      <div className="space-y-4">
+    <div className="flex-1 min-h-0 overflow-y-auto scrollbar-custom">
+      <div className="px-2 py-2 space-y-4">
         {TILE_CATEGORIES.map((cat) => {
           const tiles = TILE_TYPE_LIST.filter((t) => t.category === cat.key && t.id !== 'void')
           if (tiles.length === 0) return null
@@ -69,6 +68,6 @@ export function TilePalette() {
           )
         })}
       </div>
-    </ScrollArea>
+    </div>
   )
 }
