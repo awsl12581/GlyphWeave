@@ -16,7 +16,7 @@ export function LayersPanel() {
   const toggleLayerLock = useMapStore((s) => s.toggleLayerLock)
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
         <span className="text-xs font-medium text-zinc-400">{t('layers.title')}</span>
         <Button

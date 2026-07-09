@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import Konva from 'konva'
 import type { WorldConfig } from '@/types'
 import { useMapStore } from '@/stores/map-store'
@@ -39,6 +39,44 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<Konva.Stage | null>(null)
   useKeyboard()
+
+  // Resizable side panel
+  const [panelWidth, setPanelWidth] = useState(320)
+  const draggingRef = useRef(false)
+  const pendingWidthRef = useRef(320)
+  const rafRef = useRef(0)
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    draggingRef.current = true
+    document.body.style.cursor = 'ew-resize'
+    document.body.style.userSelect = 'none'
+  }, [])
+
+  useEffect(() => {
+    const handleMove = (e: MouseEvent) => {
+      if (!draggingRef.current) return
+      const nextWidth = window.innerWidth - e.clientX
+      pendingWidthRef.current = Math.max(240, Math.min(600, nextWidth))
+      if (rafRef.current) return
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = 0
+        setPanelWidth(pendingWidthRef.current)
+      })
+    }
+    const handleUp = () => {
+      if (!draggingRef.current) return
+      draggingRef.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [])
 
   // Sync zoomScale changes to the Konva Stage when triggered from buttons/keyboard
   const prevZoomScale = useRef(zoomScale)
@@ -144,7 +182,16 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
       </div>
 
       {sidePanelOpen && (
-        <div className="w-56 bg-zinc-950 border-l border-zinc-800 flex flex-col overflow-hidden shrink-0">
+        <div className="flex shrink-0">
+          {/* Drag handle */}
+          <div
+            className="w-1.5 cursor-ew-resize hover:bg-zinc-600 active:bg-zinc-500 shrink-0 transition-colors"
+            onMouseDown={handleDragStart}
+          />
+          <div
+            className="bg-zinc-950 border-l border-zinc-800 flex flex-col overflow-hidden shrink-0"
+            style={{ width: panelWidth }}
+          >
           <Tabs value={sidePanelTab} onValueChange={setSidePanelTab} className="flex flex-col h-full">
             <TabsList className="bg-zinc-900 border-b border-zinc-800 rounded-none px-1 h-9 justify-start gap-0 overflow-x-auto flex-nowrap">
               <TabsTrigger value="tiles" className="text-xs h-8 px-2 data-[state=active]:bg-zinc-800 rounded-none shrink-0">{t('editor.tiles')}</TabsTrigger>
@@ -173,6 +220,7 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
               <SettingsPanel />
             </TabsContent>
           </Tabs>
+        </div>
         </div>
       )}
     </div>

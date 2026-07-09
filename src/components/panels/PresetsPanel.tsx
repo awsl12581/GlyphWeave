@@ -62,7 +62,7 @@ export function PresetsPanel() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       <div className="flex gap-1 px-2 py-1.5 border-b border-zinc-800 overflow-x-auto">
         {PRESET_CATEGORIES.map((cat) => (
           <Button
@@ -77,7 +77,7 @@ export function PresetsPanel() {
         ))}
       </div>
       <ScrollArea className="flex-1 px-2 py-2">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,96px))] gap-2">
           {filtered.map((preset) => (
             <Card
               key={preset.id}

@@ -35,7 +35,7 @@ export function TilePalette() {
               <h4 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1.5 px-1">
                 {t(`tilepalette.${cat.key}`, cat.label)}
               </h4>
-              <div className="grid grid-cols-4 gap-1">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(48px,48px))] gap-1">
                 {tiles.map((tile) => {
                   const colors = theme.colors[tile.id]
                   const isSelected = activeTileType === tile.id
@@ -47,7 +47,7 @@ export function TilePalette() {
                         flex flex-col items-center justify-center rounded-md p-1.5 gap-0.5
                         transition-colors cursor-pointer
                         ${isSelected
-                          ? 'bg-zinc-700 ring-1 ring-zinc-400'
+                          ? 'bg-zinc-700 ring-1 ring-inset ring-zinc-400'
                           : 'hover:bg-zinc-800 bg-zinc-900'
                         }
                       `}
