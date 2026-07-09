@@ -21,10 +21,9 @@ import { zoomAtPoint } from '@/lib/viewport'
 
 interface EditorPageProps {
   worldConfig: WorldConfig
-  onBack: () => void
 }
 
-export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
+export function EditorPage({ worldConfig }: EditorPageProps) {
   const { t } = useTranslation()
   const initWorld = useMapStore((s) => s.initWorld)
   const sidePanelOpen = useUiStore((s) => s.sidePanelOpen)
@@ -113,19 +112,6 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
 
       <div ref={canvasRef} className="flex-1 relative overflow-hidden">
         <MapCanvas containerRef={canvasRef} stageRef={stageRef} />
-
-        <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none">
-          <div className="flex items-center gap-2 pointer-events-auto">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-[11px] text-zinc-500 hover:text-zinc-300 h-6 px-2 bg-black/60 backdrop-blur-sm border border-zinc-800"
-              onClick={onBack}
-            >
-              {t('editor.home')}
-            </Button>
-          </div>
-        </div>
 
         {showMinimap && (
           <div className="absolute top-3 right-3 pointer-events-none">
