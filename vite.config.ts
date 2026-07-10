@@ -1,4 +1,13 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
+
+// Load .env into process.env so server-side modules can read it
+const envPrefix = ''
+const env = loadEnv('', process.cwd(), envPrefix)
+for (const key of Object.keys(env)) {
+  if (!(key in process.env)) {
+    process.env[key] = env[key]
+  }
+}
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
@@ -6,6 +15,7 @@ import { renderMap } from './server/map-render.mjs'
 import { renderMapSVG } from './server/map-render-svg.mjs'
 import { convertImageToMap, parseConvertRequest } from './server/map-convert.mjs'
 import { apiDocPage } from './server/api-doc.mjs'
+import { handleChat } from './server/chat.mjs'
 
 type RenderFormat = 'png' | 'svg'
 type RenderPayload = Record<string, unknown>
@@ -146,6 +156,10 @@ function apiPlugin(): Plugin {
           res.statusCode = 400
           res.end(`Error: ${msg}`)
         }
+      })
+
+      server.middlewares.use('/api/chat', async (req, res) => {
+        await handleChat(req, res)
       })
 
       server.middlewares.use('/api', (req, res, next) => {

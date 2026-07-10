@@ -13,22 +13,23 @@ import { PresetsPanel } from '@/components/panels/PresetsPanel'
 import { LayersPanel } from '@/components/panels/LayersPanel'
 import { SettingsPanel } from '@/components/panels/SettingsPanel'
 import { ExportPanel } from '@/components/panels/ExportPanel'
+import { ChatPanel } from '@/components/panels/ChatPanel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { Download, PanelRightClose, PanelRightOpen, Settings, Plus, Minus } from 'lucide-react'
+import { Download, PanelRightClose, PanelRightOpen, Settings, Plus, Minus, MessageCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { zoomAtPoint } from '@/lib/viewport'
 
 interface EditorPageProps {
   worldConfig: WorldConfig
-  onBack: () => void
 }
 
-export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
+export function EditorPage({ worldConfig }: EditorPageProps) {
   const { t } = useTranslation()
   const initWorld = useMapStore((s) => s.initWorld)
   const sidePanelOpen = useUiStore((s) => s.sidePanelOpen)
   const toggleSidePanel = useUiStore((s) => s.toggleSidePanel)
+  const toggleChat = useUiStore((s) => s.toggleChat)
   const sidePanelTab = useUiStore((s) => s.sidePanelTab)
   const setSidePanelTab = useUiStore((s) => s.setSidePanelTab)
   const showMinimap = useUiStore((s) => s.showMinimap)
@@ -114,19 +115,6 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
       <div ref={canvasRef} className="flex-1 relative overflow-hidden">
         <MapCanvas containerRef={canvasRef} stageRef={stageRef} />
 
-        <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none">
-          <div className="flex items-center gap-2 pointer-events-auto">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-[11px] text-zinc-500 hover:text-zinc-300 h-6 px-2 bg-black/60 backdrop-blur-sm border border-zinc-800"
-              onClick={onBack}
-            >
-              {t('editor.home')}
-            </Button>
-          </div>
-        </div>
-
         {showMinimap && (
           <div className="absolute top-3 right-3 pointer-events-none">
             <Minimap stageRef={stageRef} />
@@ -164,7 +152,15 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
         </div>
 
         <div className="absolute bottom-3 right-3 pointer-events-none">
-          <div className="pointer-events-auto">
+          <div className="pointer-events-auto flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-7 h-7 bg-black/60 backdrop-blur-sm border border-zinc-800"
+              onClick={toggleChat}
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -218,6 +214,8 @@ export function EditorPage({ worldConfig, onBack }: EditorPageProps) {
           </div>
         </div>
       )}
+
+      <ChatPanel />
     </div>
   )
 }
