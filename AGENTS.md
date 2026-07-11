@@ -298,6 +298,7 @@ src/
 ├── i18n.ts                   # i18next 国际化配置
 ├── worker.ts                 # Web Worker
 ├── lib/
+│   ├── gemap/                # .gemap v3 ZIP、chunk 编码与校验
 │   ├── surfaces/             # 表面渲染系统
 │   │   ├── ascii.ts         # ASCII 字符渲染
 │   │   ├── index.ts         # 表面注册入口

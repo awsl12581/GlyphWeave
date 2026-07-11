@@ -161,7 +161,7 @@ export function buildToolDefinitions() {
     getMapState: {
       description:
         'Get a summary of the current map state: world name, tile size, theme, ' +
-        'number of layers, and tile count per layer.',
+        'active elevation slice, available slices, and tile counts.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
 

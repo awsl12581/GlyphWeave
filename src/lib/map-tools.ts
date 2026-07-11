@@ -9,8 +9,8 @@
 import { useMapStore } from '@/stores/map-store'
 import { TILE_TYPES, TILE_CATEGORIES } from '@/constants/tiles'
 import { PRESETS } from '@/constants/presets'
-import { flattenLayerTiles } from '@/lib/map-core'
 import { validateMap } from '@/lib/map-validate'
+import { formatVoxelSliceId, type VoxelSliceTiles } from '@/lib/voxel-map'
 
 export interface ToolResult {
   success: boolean
@@ -27,6 +27,11 @@ function fail(message: string): ToolResult {
 }
 
 const ALL_TILE_IDS = Object.keys(TILE_TYPES).filter((k) => k !== 'void').join(', ')
+
+function countTiles(tiles: VoxelSliceTiles | undefined): number {
+  if (!tiles) return 0
+  return Object.values(tiles).filter((tileId) => tileId != null).length
+}
 
 /** Validate a tileId from AI tool call input — defends against undefined/null/missing. */
 function validateTileId(tileId: unknown): { valid: false; error: string } | { valid: true; id: string } {
@@ -48,25 +53,20 @@ function validateTileId(tileId: unknown): { valid: false; error: string } | { va
 /** Get a high-level summary of the current map state for the AI. */
 export function getMapState(): ToolResult {
   const state = useMapStore.getState()
-  const layers = state.layers
-  const tileCounts: Record<string, number> = {}
-
-  for (const layer of layers) {
-    const layerTiles = state.tiles[layer.id]
-    tileCounts[layer.name] = layerTiles ? Object.keys(layerTiles).length : 0
-  }
+  const activeSliceId = formatVoxelSliceId(state.activeZ)
 
   return ok('Current map state retrieved.', {
     worldName: state.worldName,
     tileSize: state.tileSize,
     themeId: state.themeId,
-    activeLayer: state.layers[state.activeLayer]?.name ?? 'unknown',
-    layers: layers.map((l) => ({
-      name: l.name,
-      visible: l.visible,
-      locked: l.locked,
-      tileCount: tileCounts[l.name] ?? 0,
+    activeZ: state.activeZ,
+    activeSlice: activeSliceId,
+    slices: Object.entries(state.tiles).map(([sliceId, tiles]) => ({
+      sliceId,
+      active: sliceId === activeSliceId,
+      tileCount: countTiles(tiles),
     })),
+    activeSliceTileCount: countTiles(state.tiles[activeSliceId]),
     activeTool: state.currentTool,
     activeTileType: state.activeTileType,
   })
@@ -126,11 +126,6 @@ export function placeTile(args: { x: number; y: number; tileId: string }): ToolR
   const tileId = check.id
 
   const store = useMapStore.getState()
-  const layer = store.layers[store.activeLayer]
-  if (layer?.locked) {
-    return fail(`Layer "${layer.name}" is locked. Unlock it first.`)
-  }
-
   store.setTile(x, y, tileId)
   return ok(`Placed "${TILE_TYPES[tileId].name}" at (${x}, ${y}).`)
 }
@@ -150,11 +145,6 @@ export function placePreset(args: { presetId: string; x: number; y: number }): T
   }
 
   const store = useMapStore.getState()
-  const layer = store.layers[store.activeLayer]
-  if (layer?.locked) {
-    return fail(`Layer "${layer.name}" is locked. Unlock it first.`)
-  }
-
   store.placePreset(preset, x, y)
   const w = preset.grid[0]?.length ?? 0
   const h = preset.grid.length
@@ -174,11 +164,6 @@ export function fillArea(args: { x: number; y: number; tileId: string }): ToolRe
   const tileId = check.id
 
   const store = useMapStore.getState()
-  const layer = store.layers[store.activeLayer]
-  if (layer?.locked) {
-    return fail(`Layer "${layer.name}" is locked. Unlock it first.`)
-  }
-
   store.floodFill(x, y, tileId)
   return ok(`Flood-filled area starting at (${x}, ${y}) with "${TILE_TYPES[tileId].name}".`)
 }
@@ -190,11 +175,6 @@ export function placeMultipleTiles(args: { tiles: { x: number; y: number; tileId
   }
 
   const store = useMapStore.getState()
-  const layer = store.layers[store.activeLayer]
-  if (layer?.locked) {
-    return fail(`Layer "${layer.name}" is locked. Unlock it first.`)
-  }
-
   const validTiles: [number, number, string | null][] = []
   const invalid: string[] = []
 
@@ -238,7 +218,8 @@ export function undoLastChange(): ToolResult {
 /** Validate the current map for connectivity and logic issues. */
 export function runValidateMap(): ToolResult {
   const state = useMapStore.getState()
-  const flatTiles = flattenLayerTiles(state.tiles, state.layers)
+  const activeSliceId = formatVoxelSliceId(state.activeZ)
+  const flatTiles = { ...(state.tiles[activeSliceId] ?? {}) }
   const report = validateMap(flatTiles as Record<string, string | null>)
   return ok('Map validation complete.', report)
 }

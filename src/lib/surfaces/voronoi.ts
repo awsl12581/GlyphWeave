@@ -200,4 +200,3 @@ const VORONOI_RENDERER: SurfaceRenderer = {
 }
 
 registerSurface(VORONOI_RENDERER)
-
